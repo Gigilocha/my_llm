@@ -1,0 +1,44 @@
+# Данные для pre-trainig
+pre_training_data:
+  max_shard: 6542
+  seed: 42
+  val_split_ratio: 0.01
+
+  rus_sources:
+    - dataset_name: HuggingFaceFW/fineweb-2
+      subset: rus_Cyrl
+      split: train
+      weight: 0.7
+    - dataset_name: wikimedia/wikipedia
+      subset: 20231101.ru
+      split: train
+      weight: 0.3
+  rus_quantity: 60   # % от общего датасета
+
+  en_sources:
+    - dataset_name: OpenCoder-LLM/opc-fineweb-code-corpus  # пример
+      split: train
+      weight: 1.0
+  en_quantity: 20
+
+  code_sources:
+    - dataset_name: bigcode/stack-edu
+      split: train
+      weight: 1.0
+  code_quantity: 20
+  
+
+# Данные для fine-tuning (SFT)
+sft_data:
+  rus_sources: []
+  en_sources: []
+  code_sources: []
+
+
+# Данные для fine-tuning (RLFT)
+rlft_data:
+  rus_sources: []
+  en_sources: []
+  code_sources: []
+
+

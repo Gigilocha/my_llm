@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+build/
+dist/
+
+# Виртуальное окружение
+venv/
+.venv/
+env/
+
+# Секреты и локальные настройки
+.env
+.env.*
+!.env.example
+
+# Outputs — модели, токенизаторы, чекпоинты (тяжёлые, не для git)
+outputs/
+runs/
+checkpoints/
+
+# Данные — датасеты обычно тоже не в git
+data/
+
+# Логи
+*.log
+logs/
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Тесты/кэш
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
