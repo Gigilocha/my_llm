@@ -22,7 +22,7 @@ pre_training_data:
   en_quantity: 20
 
   code_sources:
-    - dataset_name: bigcode/stack-edu
+    - dataset_name: HuggingFaceCode/stack-v3-train
       split: train
       weight: 1.0
   code_quantity: 20

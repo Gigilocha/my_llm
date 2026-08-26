@@ -2,7 +2,7 @@ from pathlib import Path
 import re
 import logging
 from logging.handlers import RotatingFileHandler
-from core.common import get_env_settings, PROJECT_ROOT
+from src.common.config import get_env_settings, PROJECT_ROOT
 
 
 """
@@ -60,7 +60,7 @@ def setup_logger(name: str) -> logging.Logger:
 
     # Логи в файл
     if settings.log_to_file:
-        log_path = PROJECT_ROOT / settings.log_file
+        log_path = PROJECT_ROOT / settings.log_file_path
         log_path.parent.mkdir(parents=True, exist_ok=True)
         file_handler = RotatingFileHandler(
             log_path,
@@ -72,7 +72,3 @@ def setup_logger(name: str) -> logging.Logger:
         logger.addHandler(file_handler)
 
     return logger
-
-
-# Инициализация логгера
-logger = setup_logger("my_llm")

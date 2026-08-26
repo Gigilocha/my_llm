@@ -28,13 +28,12 @@ class EnvSettings(BaseSettings):
     outputs_dir: Path
 
     # Логгер
-    log_level: str 
-    log_to_console: bool
-    log_to_file: bool
-    log_file: str
+    log_level: str = "info"
+    log_to_console: bool = True
+    log_to_file: bool = False
+    log_file_path: str = "outputs/logs/app.log"
     log_max_bytes: int = 50_000_000
     log_backup_count: int = 5
-
 
 
 # Данные
@@ -76,10 +75,35 @@ class TokenizerConfig(BaseModel):
     special_tokens: dict
     split_pattern: str 
 
-
+'''
 # Модель 
 # Класс конфигурации модели
-# class ModelConfig(BaseModel):
+class ModelConfig(BaseModel):
+    hidden_size: int
+    num_layers: int
+    vocab_size: int 
+    max_position_embeddings: int   # контекст, ~6144 или 8192 (степень двойки/512 удобнее)
+    norm_eps: float           # eps для RMSNorm (pre-norm блоков)
+    window_pattern: str = "L"  # заглушка на будущее, все full attention пока
+
+# Класс конфигурации внимания
+class AttentionConfig(ModelConfig):
+    num_heads: int          # query heads
+    num_kv_heads: int        # GQA — меньше, чем num_heads (например, 12 и 4)
+    head_dim: int
+    rope_theta: float        # база RoPE, обычно 10000.0
+    qk_norm_eps: float       # eps для QK-norm (0 или отсутствие поля = выключено? или отдельный bool)
+
+# Класс конфигурации MLP
+class MLPConfig(BaseModel):
+    intermediate_size: int    # ширина SwiGLU-слоя (обычно ~2.67x hidden_size из-за gate+up+down в SwiGLU)
+
+# Конфиг модели конечный
+class GPTConfig(BaseModel):
+    model: ModelConfig
+    attention: AttentionConfig
+    mlp: MLPConfig
+'''
 
 
 # Обучение
@@ -92,6 +116,7 @@ class ExperimentConfig(BaseModel):
     env: EnvSettings
     data: DataConfig
     tokenizer: TokenizerConfig
+    # gpt: GPTConfig
 
 
 # Загрузка .yaml по названию
@@ -114,6 +139,7 @@ def get_config() -> ExperimentConfig:
         env=env,
         data=DataConfig(**_load_yaml(env, "data_config.yaml")),
         tokenizer=TokenizerConfig(**_load_yaml(env, "tokenizer_config.yaml")),
+        # gpt=GPTConfig(**_load_yaml(env, "tokenizer_config.yaml")),
     )
 
 
