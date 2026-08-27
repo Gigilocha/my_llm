@@ -1,14 +1,51 @@
+from pathlib import Path
 from typing import Iterator
-from datasets import load_dataset
+from itertools import islice
+from datasets import load_dataset, Dataset
 from datasets import interleave_datasets, IterableDataset
 
 from src.common.config import DataSource, PretrainData
 
 
-# Запуск одного стрима данных
+# Запуск одного стрима данных из сети
 def load_source_stream(name: str, subset: str | None, split: str = "train") -> IterableDataset:
     ds = load_dataset(path=name, name=subset, split=split, streaming=True)
     return ds
+
+
+# Функция построения безопасного имени файла
+def _safe_filename(source: DataSource) -> str:
+    name = source.dataset_name.replace("/", "_")
+    if source.subset:
+        name = f"{name}__{source.subset.replace('/', '_')}"
+    return f"{name}.parquet"
+
+
+# Кеширование одного источника на диск (Parquet)
+def cache_source_to_disk(source: DataSource, language: str, data_dir: Path, max_docs: int) -> Path:
+    save_path = data_dir / language / _safe_filename(source)
+    if save_path.exists():
+        return save_path
+
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    stream = load_source_stream(source.dataset_name, source.subset, source.split)
+    docs = list(islice(stream, max_docs))
+
+    from datasets import Dataset
+    Dataset.from_list(docs).to_parquet(save_path)
+    return save_path
+
+
+# Кеширование всех источников
+def cache_pretrain_data(cfg: PretrainData, data_dir: Path, max_docs: int) -> None:
+    for language, sources in [("rus", cfg.rus_sources), ("en", cfg.en_sources), ("code", cfg.code_sources)]:
+        for source in sources:
+            cache_source_to_disk(source, language, data_dir, max_docs)
+
+
+# Чтение уже закешированного источника с диска
+def load_local_stream(path: Path) -> IterableDataset:
+    return load_dataset("parquet", data_files=str(path), split="train", streaming=True)
 
 
 # Смешать источники одного языка по весам
