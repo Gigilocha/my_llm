@@ -3,15 +3,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+"""
+Заметка:
+
+"""
+
+
 # Класс MLP
 class SwiGLU(nn.Module):
     def __init__(self, hidden_size: int, intermediate_size: int):
         super().__init__()
 
         # Слои
-        self.gate = nn.Linear(hidden_size, intermediate_size)
-        self.up = nn.Linear(hidden_size, intermediate_size)
-        self.down = nn.Linear(intermediate_size, hidden_size)
+        self.gate = nn.Linear(hidden_size, intermediate_size, bias=False)
+        self.up = nn.Linear(hidden_size, intermediate_size, bias=False)
+        self.down = nn.Linear(intermediate_size, hidden_size, bias=False)
 
 
     # Прямой проход
