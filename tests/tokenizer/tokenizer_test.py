@@ -1,7 +1,7 @@
 from pathlib import Path
 from transformers import PreTrainedTokenizerFast
 from src.common.config import TokenizerConfig
-from src.tokenizer import train_tokenizer, save_tokenizer, encode, decode
+from src.tokenizer.tokenizer import train_tokenizer, save_tokenizer, encode, decode
 
 
 def _tiny_config() -> TokenizerConfig:

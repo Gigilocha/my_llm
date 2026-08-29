@@ -1,7 +1,7 @@
 from src.common.config import get_config, PROJECT_ROOT
 from src.common.logger import setup_logger
-from src.dataset import build_pretrain_mix, extract_texts
-from src.tokenizer import train_tokenizer, save_tokenizer
+from src.data.dataset import build_pretrain_mix, extract_texts
+from src.tokenizer.tokenizer import train_tokenizer, save_tokenizer
 
 from itertools import islice
 

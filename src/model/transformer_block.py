@@ -7,13 +7,17 @@ from src.model.attention import Attention
 
 # Класс одного блока трансформера
 class TransformerBlock(nn.Module):
-    def __init(self, hidden_size: int, head_dim: int, num_heads: int, num_kv_heads: int, use_qk_norm: bool, 
-               qk_norm_eps: float, rope_theta: float, max_position_embeddings: int,
-               intermediate_size: int, norm_eps: float):
+    def __init__(self, hidden_size: int, head_dim: int, 
+               num_heads: int, num_kv_heads: int, 
+               use_qk_norm: bool, qk_norm_eps: float, 
+               rope_theta: float, 
+               max_position_embeddings: int,
+               intermediate_size: int, 
+               norm_eps: float):
         super().__init__()
 
         self.norm1 = nn.RMSNorm(hidden_size, eps=norm_eps)
-        self.attnetion =Attention(
+        self.attention =Attention(
             hidden_size=hidden_size, head_dim=head_dim,
             num_heads=num_heads, num_kv_heads=num_kv_heads,
             use_qk_norm=use_qk_norm, qk_norm_eps=qk_norm_eps,
@@ -24,6 +28,9 @@ class TransformerBlock(nn.Module):
 
 
     # Прямой проход через один блок трансформера
-    def forward(self, hidden_size: int, norm_eps: float):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        
+        x = x + self.attention(self.norm1(x))
+        x = x + self.mlp(self.norm2(x))
 
-        norm1 = self.norm1(self.hidden_size, )
+        return x
