@@ -75,7 +75,7 @@ class TokenizerConfig(BaseModel):
     special_tokens: dict
     split_pattern: str 
 
-'''
+
 # Модель 
 # Класс конфигурации модели
 class ModelConfig(BaseModel):
@@ -103,12 +103,36 @@ class GPTConfig(BaseModel):
     model: ModelConfig
     attention: AttentionConfig
     mlp: MLPConfig
-'''
 
 
 # Обучение
-# Класс конфигурации обучения
-# class TrainingConfig(BaseModel):
+# Класс конфигурации базового обучения
+class PretrainingConfig(BaseModel):
+    max_len: int
+    batch_size: int
+    gradient_accumulation_steps: int
+    max_steps: int
+    learning_rate: float
+    warmup_steps: int
+    min_learning_rate: float
+    grad_clip_norm: float
+    weight_decay: float
+    eval_interval: int
+    checkpoint_interval: int
+
+# Класс конфигурации тонкой настройки (sft)
+class SFTConfig(BaseModel):
+    pass
+
+# Класс конфигурации тонкой настройки (rlft)
+class RLFTConfig(BaseModel):
+    pass
+
+# Общий класс для обучения
+class TrainingConfig(BaseModel):  
+    pre_training: PretrainingConfig
+    sft: SFTConfig
+    rlft: RLFTConfig
 
 
 # Общий конфиг для всего
@@ -116,7 +140,8 @@ class ExperimentConfig(BaseModel):
     env: EnvSettings
     data: DataConfig
     tokenizer: TokenizerConfig
-    # gpt: GPTConfig
+    model: GPTConfig
+    training: TrainingConfig
 
 
 # Загрузка .yaml по названию
@@ -139,7 +164,8 @@ def get_config() -> ExperimentConfig:
         env=env,
         data=DataConfig(**_load_yaml(env, "data_config.yaml")),
         tokenizer=TokenizerConfig(**_load_yaml(env, "tokenizer_config.yaml")),
-        # gpt=GPTConfig(**_load_yaml(env, "tokenizer_config.yaml")),
+        model=GPTConfig(**_load_yaml(env, "tokenizer_config.yaml")),
+        training=PretrainingConfig(**_load_yaml(env, "tokenizer_config.yaml")),
     )
 
 
