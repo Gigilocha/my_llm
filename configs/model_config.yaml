@@ -10,8 +10,8 @@ model:
 
 # Параметры мехинизма внимания
 attention:
-  num_head: 12
-  num_kv_head: 4
+  num_heads: 12
+  num_kv_heads: 4
   head_dim: 64
   rope_theta: 10000.0
   use_qk_norm: true

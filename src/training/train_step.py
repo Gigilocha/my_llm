@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.functional as F
+import torch.nn.functional as F
 
 
 # Функция шага тренеровки
@@ -18,8 +18,8 @@ def train_step(model: nn.Module, batch: torch.Tensor) -> float:
     # Вычисление ошибки
     loss = F.cross_entropy(logits, labels)
 
-    # Обратный проход
-    loss.backward()
+    # Обратное распространение
+    loss.backward() 
 
     return loss.item()
 

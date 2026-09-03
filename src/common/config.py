@@ -58,6 +58,9 @@ class PretrainData(SplitData):
     rus_quantity: int
     en_quantity: int
     code_quantity: int
+    rus_cache_docs: int      
+    en_cache_docs: int       
+    code_cache_docs: int
 
 # Конфиг данных конечный
 class DataConfig(BaseModel):
@@ -87,11 +90,12 @@ class ModelConfig(BaseModel):
     window_pattern: str = "L"  # заглушка на будущее, все full attention пока
 
 # Класс конфигурации внимания
-class AttentionConfig(ModelConfig):
+class AttentionConfig(BaseModel):
     num_heads: int          # query heads
     num_kv_heads: int        # GQA — меньше, чем num_heads (например, 12 и 4)
     head_dim: int
     rope_theta: float        # база RoPE, обычно 10000.0
+    use_qk_norm: bool
     qk_norm_eps: float       # eps для QK-norm (0 или отсутствие поля = выключено? или отдельный bool)
 
 # Класс конфигурации MLP
@@ -164,8 +168,8 @@ def get_config() -> ExperimentConfig:
         env=env,
         data=DataConfig(**_load_yaml(env, "data_config.yaml")),
         tokenizer=TokenizerConfig(**_load_yaml(env, "tokenizer_config.yaml")),
-        model=GPTConfig(**_load_yaml(env, "tokenizer_config.yaml")),
-        training=PretrainingConfig(**_load_yaml(env, "tokenizer_config.yaml")),
+        model=GPTConfig(**_load_yaml(env, "model_config.yaml")),
+        training=TrainingConfig(**_load_yaml(env, "training_config.yaml")),
     )
 
 

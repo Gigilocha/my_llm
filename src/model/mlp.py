@@ -3,12 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-"""
-Заметка:
-
-"""
-
-
 # Класс MLP
 class SwiGLU(nn.Module):
     def __init__(self, hidden_size: int, intermediate_size: int):

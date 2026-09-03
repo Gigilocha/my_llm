@@ -16,7 +16,7 @@ pre_training_data:
   rus_quantity: 60   # % от общего датасета
 
   en_sources:
-    - dataset_name: OpenCoder-LLM/opc-fineweb-code-corpus  # пример
+    - dataset_name: HuggingFaceFW/fineweb
       split: train
       weight: 1.0
   en_quantity: 20
@@ -26,6 +26,11 @@ pre_training_data:
       split: train
       weight: 1.0
   code_quantity: 20
+
+  # Кеширование данных на диск
+  rus_cache_docs: 3500000
+  en_cache_docs: 1500000
+  code_cache_docs: 2000000
   
 
 # Данные для fine-tuning (SFT)
