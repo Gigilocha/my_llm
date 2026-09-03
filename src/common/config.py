@@ -27,13 +27,58 @@ class EnvSettings(BaseSettings):
     data_dir: Path
     outputs_dir: Path
 
-    # Логгер
-    log_level: str = "info"
-    log_to_console: bool = True
-    log_to_file: bool = False
-    log_file_path: str = "outputs/logs/app.log"
-    log_max_bytes: int = 50_000_000
-    log_backup_count: int = 5
+
+# Мониторинг
+# Конфиг мониторинга памяти
+class MemoryMonitoring(BaseModel):
+    enabled: bool
+    interval_steps: int          # как часто логировать (шаги)
+    log_vram: bool
+    log_ram: bool
+    log_allocated: bool
+    log_reserved: bool
+
+# Конфиг мониторинга скорости генерации
+class SpeedMonitoring(BaseModel):
+    enabled: bool
+    interval_steps: int
+    log_tokens_per_sec: bool
+    log_steps_per_sec: bool
+
+# Конфиг логирования градиентов
+class GradientMonitoring(BaseModel):
+    enabled: bool
+    interval_steps: int
+    log_grad_norm: bool
+    log_grad_histogram: bool
+
+# Конфиг логирования logging
+class Logging(BaseModel):
+    log_level: str
+    log_to_console: bool
+    log_to_file: bool
+    log_file_path: str
+    log_max_bytes: int
+    log_backup_count: int
+
+# Конфиг логирования mlflow
+class MlFlow(BaseModel):
+    enabled: bool
+    tracking_uri: str
+    experiment_name: str
+    log_artifacts: bool
+    log_model: bool
+    log_params: bool
+    log_metrics: bool
+    log_tags: dict[str]
+
+# Общий класс для мониторинга
+class Monitoring(BaseModel):
+    meory_monitoring_config: MemoryMonitoring 
+    speed_monitoring_confgig: SpeedMonitoring
+    gradient_monitoring_config: GradientMonitoring
+    logging_config: Logging
+    mlflow_config: MlFlow
 
 
 # Данные
@@ -142,6 +187,7 @@ class TrainingConfig(BaseModel):
 # Общий конфиг для всего
 class ExperimentConfig(BaseModel):
     env: EnvSettings
+    monitoring: Monitoring
     data: DataConfig
     tokenizer: TokenizerConfig
     model: GPTConfig

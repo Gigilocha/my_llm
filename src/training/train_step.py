@@ -3,8 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# Функция шага тренеровки
-def train_step(model: nn.Module, batch: torch.Tensor) -> float:
+# Функция шага тренеровки.
+# grad_accum_steps > 1: loss делится перед backward, чтобы градиенты нескольких
+# микро-батчей усреднялись, а не суммировались — иначе эффективный lr незаметно
+# вырастает в grad_accum_steps раз. Возвращается немасштабированный loss (для логов).
+def train_step(model: nn.Module, batch: torch.Tensor, grad_accum_steps: int = 1) -> float:
     inputs = batch[:, :-1] # Получение данных для последующего предсказания
     labels = batch[:, 1:] # Получение меток для предсказания
 
@@ -18,8 +21,8 @@ def train_step(model: nn.Module, batch: torch.Tensor) -> float:
     # Вычисление ошибки
     loss = F.cross_entropy(logits, labels)
 
-    # Обратное распространение
-    loss.backward() 
+    # Обратное распространение (усредняем вклад микро-батча в общий градиент шага)
+    (loss / grad_accum_steps).backward()
 
     return loss.item()
 

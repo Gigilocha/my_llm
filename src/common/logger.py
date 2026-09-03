@@ -2,7 +2,7 @@ from pathlib import Path
 import re
 import logging
 from logging.handlers import RotatingFileHandler
-from src.common.config import get_env_settings, PROJECT_ROOT
+from src.common.config import get_config, PROJECT_ROOT  # ← меняем импорт
 
 
 """
@@ -26,19 +26,14 @@ class ColoredFormatter(logging.Formatter):
     RESET = '\033[0m'
 
     def format(self, record: logging.LogRecord):
-        # Сохраняем оригинальный уровень
         levelname = record.levelname
         
-        # Добавление цвета к уровню логирования
         if levelname in self.COLORS:
             record.levelname = f"{self.COLORS[levelname]}{self.BOLD}{levelname}{self.RESET}"
 
-        # Формат сообщения лога
         message = super().format(record)
 
-        # Добавление цвета к определенным частям сообщения
-        if levelname == "INFO":  # Было "info" (нижний регистр)
-            # Выделение числа и процента
+        if levelname == "INFO":
             message = re.sub(r'(\d+\.?\d*\s*(?:GB|MB|%|docs))', rf'{self.BOLD}\1{self.RESET}', message)
             message = re.sub(r'(Shard \d+)', rf'{self.COLORS["INFO"]}{self.BOLD}\1{self.RESET}', message)
         
@@ -47,25 +42,28 @@ class ColoredFormatter(logging.Formatter):
 
 # Сетап логгера
 def setup_logger(name: str) -> logging.Logger:
-    settings = get_env_settings()
+    # Берем конфиг из Monitoring
+    config = get_config()
+    logging_cfg = config.monitoring.logging  # ← новые настройки
+    
     logger = logging.getLogger(name)
-    logger.setLevel(getattr(logging, settings.log_level.upper()))
+    logger.setLevel(getattr(logging, logging_cfg.log_level.upper()))
     logger.propagate = False
 
     # Логи в консоль
-    if settings.log_to_console:
+    if logging_cfg.log_to_console:
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(ColoredFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         logger.addHandler(console_handler)
 
     # Логи в файл
-    if settings.log_to_file:
-        log_path = PROJECT_ROOT / settings.log_file_path
+    if logging_cfg.log_to_file:
+        log_path = PROJECT_ROOT / logging_cfg.log_file_path
         log_path.parent.mkdir(parents=True, exist_ok=True)
         file_handler = RotatingFileHandler(
             log_path,
-            maxBytes=settings.log_max_bytes,
-            backupCount=settings.log_backup_count,
+            maxBytes=logging_cfg.log_max_bytes,
+            backupCount=logging_cfg.log_backup_count,
             encoding="utf-8",
         )
         file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))

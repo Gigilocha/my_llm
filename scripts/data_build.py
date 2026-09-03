@@ -14,7 +14,7 @@ def main():
     logger.info(
         f"Кеширование: rus={cfg.rus_cache_docs}, en={cfg.en_cache_docs}, code={cfg.code_cache_docs} документов"
     )
-    cache_pretrain_data(cfg, data_dir)
+    cache_pretrain_data(cfg, data_dir, stage="pretrain")
     logger.info("Кеширование завершено")
 
 

@@ -1,0 +1,47 @@
+# Мониторинг памяти
+# configs/monitoring_config.yaml
+
+# Мониторинг памяти
+memory_monitoring:
+  enabled: true
+  interval_steps: 50              # как часто логировать (шаги)
+  log_vram: true
+  log_ram: true
+  log_allocated: true
+  log_reserved: true
+
+# Мониторинг скорости
+speed_monitoring:
+  enabled: true
+  interval_steps: 50
+  log_tokens_per_sec: true
+  log_steps_per_sec: true
+
+# Мониторинг градиентов
+gradient_monitoring:
+  enabled: true
+  interval_steps: 50
+  log_grad_norm: true
+  log_grad_histogram: false       # тяжело для GPU
+
+# Логирование
+logging:
+  log_level: "info"               # debug, info, warning, error
+  log_to_console: true
+  log_to_file: true
+  log_file_path: "outputs/logs/app.log"
+  log_max_bytes: 50_000_000
+  log_backup_count: 5
+
+# MLflow
+mlflow:
+  enabled: true
+  tracking_uri: "outputs/mlflow/mlruns"
+  experiment_name: "pretrain"
+  log_artifacts: true
+  log_model: true
+  log_params: true
+  log_metrics: true
+  log_tags:
+    model_type: "transformer"
+    dataset: "pretrain_mix"
