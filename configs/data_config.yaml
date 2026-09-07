@@ -13,19 +13,20 @@ pre_training_data:
       subset: 20231101.ru
       split: train
       weight: 0.3
-  rus_quantity: 60   # % от общего датасета
+  rus_quantity: 27   # % от общего датасета
 
   en_sources:
     - dataset_name: HuggingFaceFW/fineweb
       split: train
       weight: 1.0
-  en_quantity: 20
+  en_quantity: 43
 
   code_sources:
-    - dataset_name: OpenCoder-LLM/opc-fineweb-code-corpus
+    - dataset_name: HuggingFaceCode/stack-v3-train
       split: train
       weight: 1.0
-  code_quantity: 20
+      language_filter: Python
+  code_quantity: 30
 
   # Кеширование данных на диск
   rus_cache_docs: 3500000

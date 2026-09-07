@@ -1,0 +1,14 @@
+Задачи:
+Обучить модель заново
+
+Добавить раздельные конфиги pre-train для первичного обучения на малом контексте и позднего на большом
+
+Продолжить с тонкой настройкой
+
+
+
+
+
+# Запуск mlflow
+$env:MLFLOW_ALLOW_FILE_STORE="true"
+mlflow ui --host 127.0.0.1 --port 5000 --backend-store-uri file:///E:/AI/Projects/my_llm/outputs/mlflow/mlruns

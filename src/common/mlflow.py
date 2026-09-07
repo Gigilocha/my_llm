@@ -108,8 +108,8 @@ def log_model_params(model, logger: logging.Logger) -> None:
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-    logger.info(f"📊 Model params: {total_params:,} ({total_params / 1e6:.2f}M)")
-    logger.info(f"   Trainable: {trainable_params:,} ({trainable_params / 1e6:.2f}M)")
+    logger.info(f"Model params: {total_params:,} ({total_params / 1e6:.2f}M)")
+    logger.info(f"Trainable: {trainable_params:,} ({trainable_params / 1e6:.2f}M)")
     
     mlflow.log_params({
         "total_params": total_params,

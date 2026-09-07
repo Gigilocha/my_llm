@@ -2,6 +2,7 @@
 import pytest
 from pydantic import ValidationError
 from src.common.config import get_env_settings, get_config
+from tests.conftest import write_required_configs
 
 
 def _set_base_env(monkeypatch, tmp_path):
@@ -24,8 +25,10 @@ def test_env_settings_field_mapping(monkeypatch, tmp_path):
 
 # --- 2) Обязательные поля реально обязательны ---
 def test_env_settings_missing_required_raises(monkeypatch, tmp_path):
-    monkeypatch.delenv("DEVICE", raising=False) # намеренно не ставим значение DEVICE
-    monkeypatch.setenv("DTYPE", "float32")
+    # device теперь опционален (дефолт "auto" — определяется в device.py),
+    # проверяем на действительно обязательном поле — dtype
+    monkeypatch.setenv("DEVICE", "cpu")
+    monkeypatch.delenv("DTYPE", raising=False)  # намеренно не ставим значение DTYPE
     monkeypatch.setenv("CONFIGS_DIR", str(tmp_path))
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setenv("OUTPUTS_DIR", str(tmp_path))
@@ -41,6 +44,9 @@ pre_training_data:
   rus_quantity: 60
   en_quantity: 20
   code_quantity: 20
+  rus_cache_docs: 100
+  en_cache_docs: 100
+  code_cache_docs: 100
   rus_sources:
     - dataset_name: test/rus
       split: train
@@ -73,6 +79,7 @@ split_pattern: "test_pattern"
 def test_get_config_loads_yaml_files(monkeypatch, tmp_path):
     (tmp_path / "data_config.yaml").write_text(DATA_YAML, encoding="utf-8")
     (tmp_path / "tokenizer_config.yaml").write_text(TOKENIZER_YAML, encoding="utf-8")
+    write_required_configs(tmp_path)
     _set_base_env(monkeypatch, tmp_path)
 
     cfg = get_config()
@@ -84,6 +91,7 @@ def test_get_config_loads_yaml_files(monkeypatch, tmp_path):
 def test_get_config_nested_fields(monkeypatch, tmp_path):
     (tmp_path / "data_config.yaml").write_text(DATA_YAML, encoding="utf-8")
     (tmp_path / "tokenizer_config.yaml").write_text(TOKENIZER_YAML, encoding="utf-8")
+    write_required_configs(tmp_path)
     _set_base_env(monkeypatch, tmp_path)
 
     cfg = get_config()
@@ -96,6 +104,7 @@ def test_get_config_nested_fields(monkeypatch, tmp_path):
 def test_get_config_is_cached(monkeypatch, tmp_path):
     (tmp_path / "data_config.yaml").write_text(DATA_YAML, encoding="utf-8")
     (tmp_path / "tokenizer_config.yaml").write_text(TOKENIZER_YAML, encoding="utf-8")
+    write_required_configs(tmp_path)
     _set_base_env(monkeypatch, tmp_path)
 
     cfg1 = get_config()

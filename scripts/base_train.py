@@ -10,6 +10,7 @@ from src.common.mlflow import (
     log_gradients, log_model_params, log_artifacts, log_model
 )
 from src.common.config import get_config, PROJECT_ROOT
+from src.common.device import resolve_device, get_device_info
 from src.common.logger import setup_logger
 from src.data.dataset import build_pretrain_mix_from_disk, extract_texts
 from src.data.dataloader import (
@@ -30,10 +31,11 @@ def main():
     config = get_config()
 
     # Устройство
-    device = config.env.device
+    device = resolve_device(config.env.device)
 
     # Логгер
     logger = setup_logger(__name__)
+    logger.info(f"Устройство: {get_device_info(device)}")
 
     # Настройка mlflow
     # Разрешаем filestore
@@ -46,16 +48,18 @@ def main():
     # Устанавливает трекинг URI
     mlflow.set_tracking_uri(f"file:///{mlflow_dir}/mlruns")
 
+    # Запуск MLflow (обязательно до любых log_*/set_tags — иначе fluent API MLflow
+    # неявно стартует run сам на первом логирующем вызове, и явный start_run() ниже
+    # упадёт с "Run ... is already active")
+    mlflow.start_run(run_name="pretrain")
+
     # Тэги
     mlflow.set_tags({
         "model_type": "transformer",
         "dataset": "pretrain_mix",
         "language": "rus/en/code",
-        "device": config.env.device,
+        "device": device,
     })
-
-    # Запуск MLflow
-    mlflow.start_run(run_name="pretrain")
 
     params = {
         **config.model.model.model_dump(),           # ModelConfig
@@ -124,8 +128,11 @@ def main():
 
     optimizer = build_optimizer(
         model,
-        config.training.pre_training.learning_rate,
-        config.training.pre_training.weight_decay
+        adamw_lr=config.training.pre_training.learning_rate,
+        adamw_weight_decay=config.training.pre_training.weight_decay,
+        muon_lr=config.training.pre_training.muon_learning_rate,
+        muon_weight_decay=config.training.pre_training.muon_weight_decay,
+        muon_momentum=config.training.pre_training.muon_momentum,
     )
 
     # Поиск последнего чекпоинта
@@ -139,6 +146,14 @@ def main():
         logger.info(f"Восстановлено обучение с шага {start_step}")
     else:
         start_step = 0
+
+    # torch.compile — компилирует граф forward/backward (fuse операций, меньше
+    # оверхеда Python), обычно +20-50% скорости почти бесплатно. Компилируем ПОСЛЕ
+    # загрузки чекпоинта в `model`, и дальше всегда сохраняем через `model`
+    # (некомпилированный), а не через `compiled_model` — чекпоинты остаются
+    # переносимыми независимо от того, был ли включён compile в конкретном запуске.
+    # На CPU compile обычно не даёт выигрыша и может даже мешать — включаем только на CUDA
+    compiled_model = torch.compile(model) if device == "cuda" else model
 
     pretrain_config = config.training.pre_training
     grad_accum_steps = pretrain_config.gradient_accumulation_steps
@@ -155,7 +170,11 @@ def main():
             min_learning_rate=pretrain_config.min_learning_rate
         )
         for param_group in optimizer.param_groups:
-            param_group["lr"] = lr
+            # lr_scale — прогресс по расписанию (0..1 с учётом warmup/cosine), общий
+            # для всех групп; base_lr у каждой группы свой (Muon намного больше AdamW),
+            # так что абсолютный lr у групп разный, а форма расписания — одна и та же
+            lr_scale = lr / pretrain_config.learning_rate
+            param_group["lr"] = param_group["base_lr"] * lr_scale
 
         optimizer.zero_grad()
         accumulated_loss = 0.0
@@ -164,7 +183,7 @@ def main():
             pretrain_batch = collate_pretrain_batch(pretrain_dataloader, pretrain_config.batch_size)
             pretrain_batch = pretrain_batch.to(device)
 
-            loss = train_step(model, pretrain_batch, grad_accum_steps)
+            loss = train_step(compiled_model, pretrain_batch, grad_accum_steps)
             accumulated_loss += loss
 
             del pretrain_batch
@@ -195,7 +214,7 @@ def main():
         if step % pretrain_config.eval_interval == 0 and step > 0:
             val_batch = collate_pretrain_batch(val_dataloader, pretrain_config.batch_size)
             val_batch = val_batch.to(device)
-            val_loss = eval_step(model, val_batch)
+            val_loss = eval_step(compiled_model, val_batch)
             logger.info(f"step {step}, val_loss={val_loss:.4f}")
             mlflow.log_metric("val_loss", val_loss, step=step)
 

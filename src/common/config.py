@@ -70,20 +70,21 @@ class MlFlow(BaseModel):
     log_model: bool
     log_params: bool
     log_metrics: bool
-    log_tags: dict[str]
+    log_tags: dict[str, str]
 
 # Общий класс для мониторинга
 class Monitoring(BaseModel):
-    meory_monitoring_config: MemoryMonitoring 
-    speed_monitoring_confgig: SpeedMonitoring
-    gradient_monitoring_config: GradientMonitoring
-    logging_config: Logging
-    mlflow_config: MlFlow
+    memory_monitoring: MemoryMonitoring
+    speed_monitoring: SpeedMonitoring
+    gradient_monitoring: GradientMonitoring
+    logging: Logging
+    mlflow: MlFlow
 
 
 # Данные
 # Конфиг ресурсов данных
 class DataSource(BaseModel):
+    language_filter: str | None = None
     dataset_name: str
     subset: str | None = None
     split: str = "train"
@@ -100,9 +101,9 @@ class PretrainData(SplitData):
     max_shard: int
     seed: int
     val_split_ratio: float
-    rus_quantity: int
-    en_quantity: int
-    code_quantity: int
+    rus_quantity: float
+    en_quantity: float
+    code_quantity: float
     rus_cache_docs: int      
     en_cache_docs: int       
     code_cache_docs: int
@@ -168,6 +169,11 @@ class PretrainingConfig(BaseModel):
     weight_decay: float
     eval_interval: int
     checkpoint_interval: int
+    # Muon (для 2D-весов трансформера) — с дефолтами, чтобы не требовать правки
+    # существующего training_config.yaml. muon_lr обычно на порядок больше AdamW lr
+    muon_learning_rate: float = 0.02
+    muon_weight_decay: float = 0.0
+    muon_momentum: float = 0.95
 
 # Класс конфигурации тонкой настройки (sft)
 class SFTConfig(BaseModel):
@@ -212,6 +218,7 @@ def get_config() -> ExperimentConfig:
     env = get_env_settings()  # переиспользуем закешированный EnvSettings
     return ExperimentConfig(
         env=env,
+        monitoring=Monitoring(**_load_yaml(env, "monitoring_config.yaml")),
         data=DataConfig(**_load_yaml(env, "data_config.yaml")),
         tokenizer=TokenizerConfig(**_load_yaml(env, "tokenizer_config.yaml")),
         model=GPTConfig(**_load_yaml(env, "model_config.yaml")),

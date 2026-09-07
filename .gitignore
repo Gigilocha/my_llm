@@ -22,7 +22,7 @@ runs/
 checkpoints/
 
 # Данные — датасеты обычно тоже не в git
-data/
+/data/
 
 # Логи
 *.log

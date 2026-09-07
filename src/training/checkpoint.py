@@ -21,15 +21,18 @@ def save_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, step: in
     torch.save(checkpoint, checkpoint_dir / f"checkpoint_step_{step}.pt")
 
 
-# Функция загрузки контрольной точки обучения
-def load_checkpoint(checkpoint_dir: Path, step: int, model: nn.Module, optimizer: torch.optim.Optimizer):
+# Функция загрузки контрольной точки обучения.
+# optimizer=None — для чистой оценки/инференса, где optimizer не нужен вообще
+# (не заставляем вызывающий код собирать Muon+AdamW только чтобы прочитать веса)
+def load_checkpoint(checkpoint_dir: Path, step: int, model: nn.Module, optimizer: torch.optim.Optimizer | None = None):
     
     # Загружаем параметры из файла
     checkpoint = torch.load(checkpoint_dir / f"checkpoint_step_{step}.pt")
 
-    # Восстанавливаем модель и оптмаизатор
+    # Восстанавливаем модель и (если передан) оптимизатор
     model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    if optimizer is not None:
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
     return checkpoint
 
