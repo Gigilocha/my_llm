@@ -4,6 +4,7 @@ pre_training_data:
   seed: 42
   val_split_ratio: 0.01
 
+  # Русский язык
   rus_sources:
     - dataset_name: HuggingFaceFW/fineweb-2
       subset: rus_Cyrl
@@ -13,38 +14,87 @@ pre_training_data:
       subset: 20231101.ru
       split: train
       weight: 0.3
-  rus_quantity: 27   # % от общего датасета
+  rus_quantity: 60   # % от общего датасета
+  rus_cache_docs: 1200000 # Размер кеширование данных на диск (в документах)
 
+  # Английский язык
   en_sources:
     - dataset_name: HuggingFaceFW/fineweb
       split: train
       weight: 1.0
-  en_quantity: 43
+  en_quantity: 20
+  en_cache_docs: 400000
 
+  # Код
   code_sources:
     - dataset_name: HuggingFaceCode/stack-v3-train
       split: train
       weight: 1.0
-      language_filter: Python
-  code_quantity: 30
-
-  # Кеширование данных на диск
-  rus_cache_docs: 3500000
-  en_cache_docs: 1500000
-  code_cache_docs: 2000000
+  code_quantity: 20
+  code_cache_docs: 400000
   
+# --------------------------------------------------------------------------------------
 
 # Данные для fine-tuning (SFT)
 sft_data:
-  rus_sources: []
-  en_sources: []
-  code_sources: []
+  max_shard: 6542
+  seed: 42
+  val_split_ratio: 0.01
 
+  # Русский язык
+  rus_sources:
+    dataset_name: T-Wix/sft-mixture
+    split: train
+    weight: 1.0
+  rus_quantity: 60
+  rus_cache_docs: 300000
+
+  # Англиский язык
+  en_sources: 
+    dataset_name: OpenAssistant/oasst1
+    split: train
+    weight: 1.0
+  en_quantity: 20
+  en_cache_docs: 100000
+
+  # Код
+  code_sources: 
+    dataset_name: T-Wix/code_instructions
+    split: train
+    weight: 1.0
+  code_quantity: 20
+  code_cache_docs: 100000
+
+# ----------------------------------------------------------------------------------------
 
 # Данные для fine-tuning (RLFT)
 rlft_data:
-  rus_sources: []
-  en_sources: []
-  code_sources: []
+  max_shard: 6542
+  seed: 42
+  val_split_ratio: 0.01
+
+  # Русский язык
+  rus_sources:
+    dataset_name: T-Wix/rm_mixture
+    split: train
+    weight: 1.0
+  rus_quantity: 60
+  rus_cache_docs: 150000
+
+  # Англиский язык
+  en_sources: 
+    dataset_name: Anthropic/hh-rlhf
+    split: train
+    weight: 1.0
+  en_quantity: 20
+  en_cache_docs: 50000
+
+  # Код
+  code_sources: 
+    dataset_name: bigcode/humanevalpack
+    split: train
+    weight: 1.0
+  code_quantity: 20
+  code_cache_docs: 50000 
 
 

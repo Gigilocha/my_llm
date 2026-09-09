@@ -1,0 +1,7 @@
+# Параметры генерации
+engine:
+  max_new_tokens:
+  temperature:
+  top_p:
+  top_k:
+  

@@ -1,7 +1,4 @@
 # Мониторинг памяти
-# configs/monitoring_config.yaml
-
-# Мониторинг памяти
 memory_monitoring:
   enabled: true
   interval_steps: 50              # как часто логировать (шаги)
@@ -10,6 +7,8 @@ memory_monitoring:
   log_allocated: true
   log_reserved: true
 
+# ----------------------------------------------------------------------------------------
+
 # Мониторинг скорости
 speed_monitoring:
   enabled: true
@@ -17,12 +16,16 @@ speed_monitoring:
   log_tokens_per_sec: true
   log_steps_per_sec: true
 
+# ----------------------------------------------------------------------------------------
+
 # Мониторинг градиентов
 gradient_monitoring:
   enabled: true
   interval_steps: 50
   log_grad_norm: true
   log_grad_histogram: false       # тяжело для GPU
+
+# ----------------------------------------------------------------------------------------
 
 # Логирование
 logging:
@@ -32,6 +35,8 @@ logging:
   log_file_path: "outputs/logs/app.log"
   log_max_bytes: 50_000_000
   log_backup_count: 5
+
+# ----------------------------------------------------------------------------------------
 
 # MLflow
 mlflow:

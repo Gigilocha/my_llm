@@ -83,6 +83,7 @@ def main():
     parser.add_argument("--temperature", type=float, default=0.8)
     parser.add_argument("--top-k", type=int, default=50)
     parser.add_argument("--top-p", type=float, default=None)
+    parser.add_argument("--repetition-penalty", type=float, default=1.3)
     args = parser.parse_args()
 
     config = get_config()
@@ -147,6 +148,7 @@ def main():
                 temperature=args.temperature,
                 top_k=args.top_k,
                 top_p=args.top_p,
+                repetition_penalty=args.repetition_penalty,
             )
             logger.info(f"[{language}] промпт: {prompt!r}")
             logger.info(f"[{language}] генерация: {text!r}")

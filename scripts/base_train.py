@@ -14,7 +14,6 @@ from src.common.device import resolve_device, get_device_info
 from src.common.logger import setup_logger
 from src.data.dataset import build_pretrain_mix_from_disk, extract_texts
 from src.data.dataloader import (
-    create_pretrain_dataloader,
     create_cycling_pretrain_dataloader,
     collate_pretrain_batch,
 )
@@ -78,12 +77,19 @@ def main():
     tokenizer_path = PROJECT_ROOT / config.env.outputs_dir / "tokenizer"
     tokenizer = PreTrainedTokenizerFast.from_pretrained(str(tokenizer_path))
 
-    # Сбор тренировочного микса для Pre-training (train) — один проход по всему train-корпусу
+    # Сбор тренировочного микса для Pre-training (train). Оборачиваем в
+    # create_cycling_pretrain_dataloader (та же обёртка, что и для val) —
+    # не потому что рассчитываем пройти весь корпус за max_steps (специально
+    # кешируем с запасом, чтобы почти не повторять документы), а как страховку:
+    # если когда-нибудь *_cache_docs окажется меньше, чем реально требуется на
+    # max_steps, обучение не упадёт на середине прогона с ошибкой на пустом
+    # батче, а просто начнёт слегка досэмплировать корпус по новой
     logger.info("Сборка тренировочных данных (train)...")
-    train_mix = build_pretrain_mix_from_disk(pretrain_data_cfg, data_dir, split="train")
-    train_text = extract_texts(train_mix)
-    pretrain_dataloader = create_pretrain_dataloader(
-        train_text,
+    train_text_factory = lambda: extract_texts(
+        build_pretrain_mix_from_disk(pretrain_data_cfg, data_dir, split="train")
+    )
+    pretrain_dataloader = create_cycling_pretrain_dataloader(
+        train_text_factory,
         tokenizer,
         config.training.pre_training.max_len
     )
@@ -198,7 +204,7 @@ def main():
 
 
         if step % config.monitoring.speed_monitoring.interval_steps == 0:
-            log_speed(logger, step, pretrain_config.batch_size, pretrain_config.max_len, elapsed)
+            log_speed(logger, step, pretrain_config.batch_size, pretrain_config.max_len, elapsed, grad_accum_steps)
 
         if step % config.monitoring.memory_monitoring.interval_steps == 0:
             log_memory(logger, step, tag="training")

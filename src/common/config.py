@@ -9,6 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Определение корня проекта
 PROJECT_ROOT = Path(__file__).parents[2].resolve()
 
+# ----------------------------------------------------------------------------------------
 
 # Настройки из .env
 class EnvSettings(BaseSettings):
@@ -18,8 +19,9 @@ class EnvSettings(BaseSettings):
         extra='ignore'
     )
 
-    # Устройство
-    device: str 
+    # Устройство. "auto" (по умолчанию) — определяется в device.py:resolve_device().
+    # Можно задать явно (cuda/cpu) в .env — тогда используется как есть
+    device: str = "auto"
     dtype: str 
 
     # Директории
@@ -27,6 +29,7 @@ class EnvSettings(BaseSettings):
     data_dir: Path
     outputs_dir: Path
 
+# ----------------------------------------------------------------------------------------
 
 # Мониторинг
 # Конфиг мониторинга памяти
@@ -80,15 +83,20 @@ class Monitoring(BaseModel):
     logging: Logging
     mlflow: MlFlow
 
+# ----------------------------------------------------------------------------------------
 
 # Данные
 # Конфиг ресурсов данных
 class DataSource(BaseModel):
-    language_filter: str | None = None
     dataset_name: str
     subset: str | None = None
     split: str = "train"
     weight: float = 1.0
+    # Для датасетов с вложенной repo-структурой (одна строка = репозиторий,
+    # файлы лежат в списке files[]), например HuggingFaceCode/stack-v3-train:
+    # значение поля "language" внутри files[], по которому фильтруем конкретный
+    # язык программирования. None — источник плоский, фильтрация не нужна
+    language_filter: str | None = None
 
 # Конфиг разделения данных
 class SplitData(BaseModel):
@@ -101,9 +109,9 @@ class PretrainData(SplitData):
     max_shard: int
     seed: int
     val_split_ratio: float
-    rus_quantity: float
-    en_quantity: float
-    code_quantity: float
+    rus_quantity: int
+    en_quantity: int
+    code_quantity: int
     rus_cache_docs: int      
     en_cache_docs: int       
     code_cache_docs: int
@@ -114,6 +122,7 @@ class DataConfig(BaseModel):
     sft_data: SplitData
     rlft_data: SplitData
 
+# ----------------------------------------------------------------------------------------
 
 # Токенизатор
 class TokenizerConfig(BaseModel):
@@ -124,6 +133,7 @@ class TokenizerConfig(BaseModel):
     special_tokens: dict
     split_pattern: str 
 
+# ----------------------------------------------------------------------------------------
 
 # Модель 
 # Класс конфигурации модели
@@ -154,6 +164,7 @@ class GPTConfig(BaseModel):
     attention: AttentionConfig
     mlp: MLPConfig
 
+# ----------------------------------------------------------------------------------------
 
 # Обучение
 # Класс конфигурации базового обучения
@@ -189,6 +200,7 @@ class TrainingConfig(BaseModel):
     sft: SFTConfig
     rlft: RLFTConfig
 
+# ----------------------------------------------------------------------------------------
 
 # Общий конфиг для всего
 class ExperimentConfig(BaseModel):
@@ -199,6 +211,7 @@ class ExperimentConfig(BaseModel):
     model: GPTConfig
     training: TrainingConfig
 
+# ----------------------------------------------------------------------------------------
 
 # Загрузка .yaml по названию
 def _load_yaml(env: EnvSettings, filename: str) -> dict:

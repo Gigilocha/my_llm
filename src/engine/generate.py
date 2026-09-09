@@ -28,6 +28,7 @@ def generate(
     temperature: float = 0.8,
     top_k: int | None = 50,
     top_p: float | None = None,
+    repetition_penalty: float = 1.3,
 ) -> str:
     was_training = model.training
     model.eval()
@@ -47,6 +48,20 @@ def generate(
 
         logits = model(context)
         next_token_logits = logits[0, -1, :]
+
+        # Repetition penalty (Keskar et al., CTRL): штрафуем токены, которые уже
+        # встречались в сгенерированной последовательности — понижаем логит, если
+        # он положительный, повышаем "штраф" (делаем более отрицательным), если
+        # уже отрицательный. Без этого модель на недообученных данных (как у нас
+        # сейчас) легко проваливается в буквальные повторы — например, генерирует
+        # два идентичных def подряд, потому что "продолжить тем же самым" для неё
+        # локально самый вероятный токен
+        if repetition_penalty != 1.0:
+            for token_id in set(input_ids[0].tolist()):
+                if next_token_logits[token_id] > 0:
+                    next_token_logits[token_id] /= repetition_penalty
+                else:
+                    next_token_logits[token_id] *= repetition_penalty
 
         if temperature > 0:
             next_token_logits = next_token_logits / temperature

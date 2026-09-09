@@ -124,26 +124,6 @@ def check_train_val_overlap(config, data_dir, tokenizer, sample_size, logger) ->
         logger.info("  Выборочная проверка чистая (не гарантия на 100% всех данных, но хороший сигнал)")
 
 
-def show_sample_data(config, data_dir, tokenizer, logger):
-    """Показывает пример документа из каждого датасета."""
-    cfg = config.data.pre_training_data
-    sources = {"rus": cfg.rus_sources, "en": cfg.en_sources, "code": cfg.code_sources}
-    
-    logger.info("\n=== 0. Примеры данных из каждого источника ===")
-    for language, source_list in sources.items():
-        for source in source_list:
-            try:
-                mix = build_language_mix_from_disk(
-                    [source], "pretrain", language, data_dir, cfg.seed, split="train"
-                )
-                for i, text in enumerate(extract_texts(mix)):
-                    if i >= 1:  # только первый документ
-                        break
-                    logger.info(f"  [{language}] {source.dataset_name}:")
-                    logger.info(f"    {text[:200]}...")  # первые 200 символов
-            except Exception as e:
-                logger.warning(f"  [{language}] {source.dataset_name}: не удалось загрузить пример — {e}")
-
 def main():
     parser = argparse.ArgumentParser(description="Проверка данных перед обучением: калибровка микса, val, утечки")
     parser.add_argument("--sample-size", type=int, default=300, help="Сколько документов на язык мерить в каждой проверке")
@@ -155,8 +135,6 @@ def main():
 
     tokenizer_path = PROJECT_ROOT / config.env.outputs_dir / "tokenizer"
     tokenizer = PreTrainedTokenizerFast.from_pretrained(str(tokenizer_path))
-
-    show_sample_data(config, data_dir, tokenizer, logger)
 
     check_mix_calibration(config, data_dir, tokenizer, args.sample_size, logger)
     check_val_adequacy(config, data_dir, tokenizer, args.sample_size, logger)

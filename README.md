@@ -9,13 +9,13 @@
 Ключевой принцип разработки — **reconstruction method**: перед написанием любого кода сначала формулируется словами, что он должен делать и почему, а сам код пишется по памяти/логике, без копирования готовых решений построчно.
 
 ## Архитектура модели
-
 - **Механизм внимания:** Grouped Query Attention (GQA) — 12 query-голов, 4 key/value-головы
 - **Позиционное кодирование:** RoPE (Rotary Positional Embeddings)
 - **Нормализация:** RMSNorm (pre-norm) + опциональная QK-norm внутри attention
 - **MLP:** SwiGLU
 - **Контекст:** 6144 токена
 - **Параметры:** ~126M (hidden_size=768, num_layers=12, vocab_size=65536)
+
 
 ## Токенизатор
 
@@ -77,3 +77,8 @@ uv run pytest tests/ -v
 ## Автор
 
 Разработка ведётся в рамках самостоятельного изучения ML/LLM engineering.
+
+
+# Запуск mlflow
+$env:MLFLOW_ALLOW_FILE_STORE="true"
+mlflow ui --host 127.0.0.1 --port 5000 --backend-store-uri file:///E:/AI/Projects/my_llm/outputs/mlflow/mlruns
