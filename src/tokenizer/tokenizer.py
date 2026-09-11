@@ -56,9 +56,11 @@ def encode(tokenizer: PreTrainedTokenizerFast, text: str, add_special_tokens: bo
     return ids
 
 
-# Декодирование текста
-def decode(tokenizer: PreTrainedTokenizerFast, ids: list[int]) -> str:
-    return tokenizer.decode(ids)
+# Декодирование текста.
+# skip_special_tokens=True по умолчанию: BOS/EOS/PAD нужны модели для обучения,
+# но не нужны в тексте, который в итоге увидит человек (генерация, round-trip и т.п.)
+def decode(tokenizer: PreTrainedTokenizerFast, ids: list[int], skip_special_tokens: bool = True) -> str:
+    return tokenizer.decode(ids, skip_special_tokens=skip_special_tokens)
 
 
 # Функции для Fine-tuning

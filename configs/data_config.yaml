@@ -4,7 +4,6 @@ pre_training_data:
   seed: 42
   val_split_ratio: 0.01
 
-  # Русский язык
   rus_sources:
     - dataset_name: HuggingFaceFW/fineweb-2
       subset: rus_Cyrl
@@ -15,86 +14,62 @@ pre_training_data:
       split: train
       weight: 0.3
   rus_quantity: 60   # % от общего датасета
-  rus_cache_docs: 1200000 # Размер кеширование данных на диск (в документах)
 
-  # Английский язык
   en_sources:
     - dataset_name: HuggingFaceFW/fineweb
       split: train
       weight: 1.0
   en_quantity: 20
-  en_cache_docs: 400000
 
-  # Код
   code_sources:
     - dataset_name: HuggingFaceCode/stack-v3-train
       split: train
       weight: 1.0
   code_quantity: 20
-  code_cache_docs: 400000
+
+  # Кеширование данных на диск
+  rus_cache_docs: 3500000
+  en_cache_docs: 1500000
+  code_cache_docs: 2000000
   
-# --------------------------------------------------------------------------------------
 
 # Данные для fine-tuning (SFT)
 sft_data:
-  max_shard: 6542
-  seed: 42
+  # ВНИМАНИЕ: instruction_field/output_field/system_field — предположение по
+  # результатам поиска (dataset card), НЕ проверено на реальной схеме данных.
+  # cache_sft_data() упадёт с понятной ошибкой при первом расхождении —
+  # поправь имена полей по этой ошибке, если она возникнет
+  sources:
+    - dataset_name: concretejungles/T-Wix-instag
+      split: train
+      weight: 1.0
+      instruction_field: instruction
+      output_field: output
+      system_field: system
+
+    - dataset_name: nyuuzyou/EagleSFT
+      split: train
+      weight: 1.0
+      instruction_field: question
+      output_field: answer
+
+    # Непроверенное происхождение (см. обсуждение) — маленький вес, пока не
+    # прочитаны глазами хотя бы 20-30 примеров
+    - dataset_name: lazarus19/Vibe-Coding-Instruct
+      split: train
+      weight: 0.15
+      instruction_field: instruction
+      output_field: output
+
+  cache_docs_per_source: 200000
   val_split_ratio: 0.01
+  seed: 42
 
-  # Русский язык
-  rus_sources:
-    dataset_name: T-Wix/sft-mixture
-    split: train
-    weight: 1.0
-  rus_quantity: 60
-  rus_cache_docs: 300000
-
-  # Англиский язык
-  en_sources: 
-    dataset_name: OpenAssistant/oasst1
-    split: train
-    weight: 1.0
-  en_quantity: 20
-  en_cache_docs: 100000
-
-  # Код
-  code_sources: 
-    dataset_name: T-Wix/code_instructions
-    split: train
-    weight: 1.0
-  code_quantity: 20
-  code_cache_docs: 100000
-
-# ----------------------------------------------------------------------------------------
 
 # Данные для fine-tuning (RLFT)
 rlft_data:
-  max_shard: 6542
-  seed: 42
-  val_split_ratio: 0.01
-
-  # Русский язык
-  rus_sources:
-    dataset_name: T-Wix/rm_mixture
-    split: train
-    weight: 1.0
-  rus_quantity: 60
-  rus_cache_docs: 150000
-
-  # Англиский язык
-  en_sources: 
-    dataset_name: Anthropic/hh-rlhf
-    split: train
-    weight: 1.0
-  en_quantity: 20
-  en_cache_docs: 50000
-
-  # Код
-  code_sources: 
-    dataset_name: bigcode/humanevalpack
-    split: train
-    weight: 1.0
-  code_quantity: 20
-  code_cache_docs: 50000 
+  rus_sources: []
+  en_sources: []
+  code_sources: []
 
 

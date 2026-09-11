@@ -28,9 +28,9 @@ class TransformerBlock(nn.Module):
 
 
     # Прямой проход через один блок трансформера
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, attn_mask: torch.Tensor | None = None) -> torch.Tensor:
         
-        x = x + self.attention(self.norm1(x))
+        x = x + self.attention(self.norm1(x), attn_mask=attn_mask)
         x = x + self.mlp(self.norm2(x))
 
         return x

@@ -32,7 +32,18 @@ pre_training:
   weight_decay: 0.01
   eval_interval: 5
   checkpoint_interval: 5
-sft: {}
+sft:
+  max_len: 16
+  batch_size: 2
+  gradient_accumulation_steps: 1
+  max_steps: 10
+  learning_rate: 0.00005
+  warmup_steps: 1
+  min_learning_rate: 0.000005
+  grad_clip_norm: 1.0
+  weight_decay: 0.01
+  eval_interval: 5
+  checkpoint_interval: 5
 rlft: {}
 """
 
@@ -84,6 +95,7 @@ def write_required_configs(tmp_path, **logging_overrides) -> None:
     (tmp_path / "model_config.yaml").write_text(MODEL_YAML, encoding="utf-8")
     (tmp_path / "training_config.yaml").write_text(TRAINING_YAML, encoding="utf-8")
     (tmp_path / "monitoring_config.yaml").write_text(_monitoring_yaml(**logging_overrides), encoding="utf-8")
+    (tmp_path / "engine_config.yaml").write_text("", encoding="utf-8")  # все поля EngineConfig опциональны
 
 
 # Очистка кеша

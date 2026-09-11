@@ -9,7 +9,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Определение корня проекта
 PROJECT_ROOT = Path(__file__).parents[2].resolve()
 
-# ----------------------------------------------------------------------------------------
 
 # Настройки из .env
 class EnvSettings(BaseSettings):
@@ -29,7 +28,6 @@ class EnvSettings(BaseSettings):
     data_dir: Path
     outputs_dir: Path
 
-# ----------------------------------------------------------------------------------------
 
 # Мониторинг
 # Конфиг мониторинга памяти
@@ -83,7 +81,6 @@ class Monitoring(BaseModel):
     logging: Logging
     mlflow: MlFlow
 
-# ----------------------------------------------------------------------------------------
 
 # Данные
 # Конфиг ресурсов данных
@@ -116,13 +113,35 @@ class PretrainData(SplitData):
     en_cache_docs: int       
     code_cache_docs: int
 
+# Один источник SFT-данных. instruction/output — обязательные поля (после
+# маппинга), input/system — опциональные. Разные датасеты называют колонки
+# по-разному (instruction/output, question/answer и т.д.) — вместо того чтобы
+# угадывать и жёстко зашивать имена в код, задаём маппинг в конфиге. Если
+# угадаем неверно — cache_sft_data() упадёт с понятной ошибкой на первом же
+# документе (список реально доступных полей в сообщении), а не молча
+# закеширует пустые примеры, как было с stack-v3-train до фикса
+class SFTSource(BaseModel):
+    dataset_name: str
+    subset: str | None = None
+    split: str = "train"
+    weight: float = 1.0
+    instruction_field: str = "instruction"
+    input_field: str | None = None
+    output_field: str = "output"
+    system_field: str | None = None
+
+class SFTData(BaseModel):
+    sources: list[SFTSource] = []
+    cache_docs_per_source: int = 100_000
+    val_split_ratio: float = 0.01
+    seed: int = 42
+
 # Конфиг данных конечный
 class DataConfig(BaseModel):
     pre_training_data: PretrainData
-    sft_data: SplitData
+    sft_data: SFTData
     rlft_data: SplitData
 
-# ----------------------------------------------------------------------------------------
 
 # Токенизатор
 class TokenizerConfig(BaseModel):
@@ -133,7 +152,6 @@ class TokenizerConfig(BaseModel):
     special_tokens: dict
     split_pattern: str 
 
-# ----------------------------------------------------------------------------------------
 
 # Модель 
 # Класс конфигурации модели
@@ -164,7 +182,6 @@ class GPTConfig(BaseModel):
     attention: AttentionConfig
     mlp: MLPConfig
 
-# ----------------------------------------------------------------------------------------
 
 # Обучение
 # Класс конфигурации базового обучения
@@ -188,7 +205,20 @@ class PretrainingConfig(BaseModel):
 
 # Класс конфигурации тонкой настройки (sft)
 class SFTConfig(BaseModel):
-    pass
+    max_len: int
+    batch_size: int
+    gradient_accumulation_steps: int
+    max_steps: int
+    learning_rate: float
+    warmup_steps: int
+    min_learning_rate: float
+    grad_clip_norm: float
+    weight_decay: float
+    eval_interval: int
+    checkpoint_interval: int
+    muon_learning_rate: float = 0.02
+    muon_weight_decay: float = 0.0
+    muon_momentum: float = 0.95
 
 # Класс конфигурации тонкой настройки (rlft)
 class RLFTConfig(BaseModel):
@@ -200,9 +230,21 @@ class TrainingConfig(BaseModel):
     sft: SFTConfig
     rlft: RLFTConfig
 
-# ----------------------------------------------------------------------------------------
 
 # Общий конфиг для всего
+# Конфиг движка генерации — параметры сэмплирования по умолчанию и выбор
+# движка (наивный без KV-кеша vs GenerationEngine с кешем). Скрипты могут
+# переопределять отдельные параметры через CLI (см. base_eval.py) — эти
+# значения используются как дефолт, когда параметр явно не передан
+class EngineConfig(BaseModel):
+    use_kv_cache: bool = True
+    max_new_tokens: int = 100
+    temperature: float = 0.7
+    top_k: int = 50
+    top_p: float | None = None
+    repetition_penalty: float = 1.3
+
+
 class ExperimentConfig(BaseModel):
     env: EnvSettings
     monitoring: Monitoring
@@ -210,14 +252,16 @@ class ExperimentConfig(BaseModel):
     tokenizer: TokenizerConfig
     model: GPTConfig
     training: TrainingConfig
+    engine: EngineConfig
 
-# ----------------------------------------------------------------------------------------
 
 # Загрузка .yaml по названию
 def _load_yaml(env: EnvSettings, filename: str) -> dict:
     path = PROJECT_ROOT / env.configs_dir / filename
     with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        # yaml.safe_load на пустом файле возвращает None, а не {} —
+        # без этого EngineConfig(**None) упал бы с TypeError
+        return yaml.safe_load(f) or {}
 
 
 # Получение настроек
@@ -236,6 +280,7 @@ def get_config() -> ExperimentConfig:
         tokenizer=TokenizerConfig(**_load_yaml(env, "tokenizer_config.yaml")),
         model=GPTConfig(**_load_yaml(env, "model_config.yaml")),
         training=TrainingConfig(**_load_yaml(env, "training_config.yaml")),
+        engine=EngineConfig(**_load_yaml(env, "engine_config.yaml")),
     )
 
 

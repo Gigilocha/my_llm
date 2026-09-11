@@ -1,5 +1,6 @@
 import argparse
 import math
+import os
 
 import mlflow
 import torch
@@ -13,7 +14,7 @@ from src.data.dataloader import create_cycling_pretrain_dataloader, collate_pret
 from src.model.transformer import Transformer
 from src.training.checkpoint import find_latest_checkpoint, load_checkpoint
 from src.training.eval_step import eval_step
-from src.engine.generate import generate
+from src.engine.select import make_generate_fn
 
 
 # Промпты для качественной проверки — по одному-два на язык, разной сложности
@@ -79,17 +80,29 @@ def main():
     parser = argparse.ArgumentParser(description="Оценка чекпоинта: loss по языкам + примеры генерации")
     parser.add_argument("--step", type=int, default=None, help="Номер шага чекпоинта (по умолчанию — последний доступный)")
     parser.add_argument("--num-eval-batches", type=int, default=50, help="Сколько val-батчей усреднять на язык")
-    parser.add_argument("--max-new-tokens", type=int, default=80, help="Длина генерации для качественной проверки")
-    parser.add_argument("--temperature", type=float, default=0.8)
-    parser.add_argument("--top-k", type=int, default=50)
+    parser.add_argument("--max-new-tokens", type=int, default=None, help="По умолчанию — из engine_config.yaml")
+    parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument("--top-k", type=int, default=None)
     parser.add_argument("--top-p", type=float, default=None)
-    parser.add_argument("--repetition-penalty", type=float, default=1.3)
+    parser.add_argument("--repetition-penalty", type=float, default=None)
     args = parser.parse_args()
 
     config = get_config()
     device = resolve_device(config.env.device)
     logger = setup_logger(__name__)
     logger.info(f"Устройство: {get_device_info(device)}")
+
+    # CLI-флаги — необязательные оверрайды поверх engine_config.yaml, не
+    # единственный источник значений (если не передан — берём из конфига)
+    engine_cfg = config.engine.model_copy(update={
+        k: v for k, v in {
+            "max_new_tokens": args.max_new_tokens,
+            "temperature": args.temperature,
+            "top_k": args.top_k,
+            "top_p": args.top_p,
+            "repetition_penalty": args.repetition_penalty,
+        }.items() if v is not None
+    })
 
     data_dir = PROJECT_ROOT / config.env.data_dir
     checkpoints_dir = PROJECT_ROOT / "outputs" / "checkpoints"
@@ -128,6 +141,15 @@ def main():
 
     # Логируем в MLflow отдельным run, привязанным к шагу чекпоинта —
     # чтобы можно было сравнивать разные чекпоинты между собой со временем
+    # Тот же tracking URI, что и в base_train.py/base_sft.py — без явного
+    # set_tracking_uri MLflow создаёт mlruns/ там, откуда запущен скрипт
+    # (обычно корень репозитория), а не в outputs/mlflow/ — тогда оценка
+    # логируется в отдельную, "невидимую" из UI базу
+    os.environ["MLFLOW_ALLOW_FILE_STORE"] = "true"
+    mlflow_dir = PROJECT_ROOT / "outputs" / "mlflow"
+    mlflow_dir.mkdir(parents=True, exist_ok=True)
+    mlflow.set_tracking_uri(f"file:///{mlflow_dir}/mlruns")
+
     mlflow.start_run(run_name=f"eval_step_{step}")
     mlflow.log_param("checkpoint_step", step)
     for language, (loss, perplexity) in results.items():
@@ -137,19 +159,12 @@ def main():
     mlflow.log_metric("perplexity_overall", overall_perplexity)
 
     # --- Качественная оценка: реальные генерации, чтобы прочитать глазами ---
-    logger.info("Генерирую примеры...")
+    logger.info(f"Генерирую примеры (движок: {'GenerationEngine/KV-кеш' if engine_cfg.use_kv_cache else 'naive'})...")
+    generate_fn = make_generate_fn(model, tokenizer, device, config.model.model.max_position_embeddings, engine_cfg)
     generation_log = []
     for language, prompts in GENERATION_PROMPTS.items():
         for prompt in prompts:
-            text = generate(
-                model, tokenizer, prompt, device,
-                max_position_embeddings=config.model.model.max_position_embeddings,
-                max_new_tokens=args.max_new_tokens,
-                temperature=args.temperature,
-                top_k=args.top_k,
-                top_p=args.top_p,
-                repetition_penalty=args.repetition_penalty,
-            )
+            text = generate_fn(prompt)
             logger.info(f"[{language}] промпт: {prompt!r}")
             logger.info(f"[{language}] генерация: {text!r}")
             generation_log.append(f"=== {language} ===\nПромпт: {prompt}\nГенерация: {text}\n")

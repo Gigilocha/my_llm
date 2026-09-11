@@ -79,3 +79,35 @@ def test_kv_cache_count_matches_model_layers():
     engine.model = model
     engine.caches = [KVCache() for _ in range(len(model.trasformer_block))]
     assert len(engine.caches) == 2  # num_layer=2 в _make_tiny_model
+
+
+# Выход за max_position_embeddings должен останавливать генерацию (или падать
+# с понятной ошибкой на слишком длинном промпте), а не крашиться на пустом
+# RoPE-срезе с непонятной ошибкой формы тензора
+def test_generate_stops_gracefully_at_max_position_embeddings():
+    from transformers import PreTrainedTokenizerFast
+    from tokenizers import Tokenizer, models, pre_tokenizers
+    from tokenizers.trainers import BpeTrainer
+
+    tok = Tokenizer(models.BPE(unk_token="<|unk|>"))
+    tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
+    specials = ["<|unk|>", "<|bos|>", "<|eos|>", "<|pad|>"]
+    trainer = BpeTrainer(vocab_size=100, special_tokens=specials)
+    tok.train_from_iterator(["hello world test data sample"] * 20, trainer=trainer)
+    tokenizer = PreTrainedTokenizerFast(
+        tokenizer_object=tok, bos_token="<|bos|>", eos_token="<|eos|>", pad_token="<|pad|>",
+    )
+
+    model = _make_tiny_model()  # max_position_embeddings=32
+    engine = GenerationEngine(model, tokenizer, device="cpu", max_new_tokens=100, temperature=0.8)
+
+    # Промпт короткий -> должен сгенерировать что-то и остановиться сам
+    # (по max_position_embeddings=32, а не упасть)
+    result = engine.generate("hello world")
+    assert isinstance(result, str)
+
+    # Промпт заведомо длиннее max_position_embeddings -> явная ошибка, не краш
+    import pytest
+    long_prompt = "hello world test data sample " * 20
+    with pytest.raises(ValueError, match="max_position_embeddings"):
+        engine.generate(long_prompt)

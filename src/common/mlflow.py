@@ -88,9 +88,12 @@ def log_speed(
     batch_size: int,
     seq_len: int,
     elapsed_time: float,
+    grad_accum_steps: int = 1,
 ) -> None:
-    # Токены в батче: batch_size * seq_len
-    tokens_per_step = batch_size * seq_len
+    # Токены за ШАГ ОПТИМИЗАТОРА: batch_size * seq_len * grad_accum_steps —
+    # elapsed_time меряет время ВСЕХ накопленных микро-батчей, а не одного,
+    # так что без grad_accum_steps здесь скорость занижалась бы в grad_accum_steps раз
+    tokens_per_step = batch_size * seq_len * grad_accum_steps
     tokens_per_sec = tokens_per_step / elapsed_time
     steps_per_sec = 1.0 / elapsed_time
     
@@ -108,8 +111,8 @@ def log_model_params(model, logger: logging.Logger) -> None:
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-    logger.info(f"Model params: {total_params:,} ({total_params / 1e6:.2f}M)")
-    logger.info(f"Trainable: {trainable_params:,} ({trainable_params / 1e6:.2f}M)")
+    logger.info(f"📊 Model params: {total_params:,} ({total_params / 1e6:.2f}M)")
+    logger.info(f"   Trainable: {trainable_params:,} ({trainable_params / 1e6:.2f}M)")
     
     mlflow.log_params({
         "total_params": total_params,

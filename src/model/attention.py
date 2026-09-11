@@ -99,8 +99,12 @@ class Attention(nn.Module):
         self.register_buffer("rope_sin", sin)
 
 
-    # Прямой проход
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    # Прямой проход.
+    # attn_mask=None (по умолчанию) -> is_causal=True, поведение НЕ отличается
+    # от исходного (важно: весь pretrain уже проверен именно на этом пути).
+    # attn_mask задан -> используется явная маска (причинность + padding вместе),
+    # нужно для SFT, где в одном батче примеры разной длины
+    def forward(self, x: torch.Tensor, attn_mask: torch.Tensor | None = None) -> torch.Tensor:
         batch, seq_len, hidden_dim = x.shape
 
         # Проход через QKV
@@ -124,7 +128,10 @@ class Attention(nn.Module):
         v = torch.repeat_interleave(v, repeats, dim=1)
 
         # SDPA
-        attn_output = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        if attn_mask is None:
+            attn_output = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        else:
+            attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, is_causal=False)
 
         # Преобразование в изначальную форму
         attn_output = attn_output.transpose(1, 2).contiguous().view(batch, seq_len, self.num_heads * self.head_dim)
@@ -133,3 +140,15 @@ class Attention(nn.Module):
         out = self.output_layer(attn_output)
 
         return out
+
+
+# Строит совмещённую маску причинности+паддинга из простой [batch, seq_len]
+# маски (1=реальный токен, 0=паддинг). Формируется ОДИН РАЗ в Transformer.forward
+# и переиспользуется на всех слоях — не пересчитывается в каждом Attention.
+# True = разрешено внимание (соответствует семантике bool attn_mask в SDPA)
+def build_causal_padding_mask(attention_mask: torch.Tensor) -> torch.Tensor:
+    batch, seq_len = attention_mask.shape
+    device = attention_mask.device
+    causal = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.bool, device=device))
+    pad = attention_mask.bool()
+    return causal[None, None, :, :] & pad[:, None, None, :]

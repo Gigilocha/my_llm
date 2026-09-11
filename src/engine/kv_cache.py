@@ -40,6 +40,7 @@ class GenerationEngine:
         max_new_tokens: int = 100,
         temperature: float = 0.7,
         top_k: int = 50,
+        repetition_penalty: float = 1.3,
     ):
         self.model = model.to(device).eval()
         self.tokenizer = tokenizer
@@ -47,6 +48,7 @@ class GenerationEngine:
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
         self.top_k = top_k
+        self.repetition_penalty = repetition_penalty
 
         # ИСПРАВЛЕНО: model.num_layers не существует — берём длину уже
         # построенного ModuleList, а не несуществующий сохранённый атрибут
@@ -123,11 +125,14 @@ class GenerationEngine:
         max_new_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        repetition_penalty: Optional[float] = None,
     ) -> str:
 
         max_new_tokens = max_new_tokens or self.max_new_tokens
         temperature = temperature if temperature is not None else self.temperature
         top_k = top_k if top_k is not None else self.top_k
+        repetition_penalty = repetition_penalty if repetition_penalty is not None else self.repetition_penalty
 
         # ИСПРАВЛЕНО: сырой tokenizer.encode() не добавляет BOS (post_processor
         # тут только про byte-level смещения, не про спецтокены) — модель на
@@ -138,18 +143,56 @@ class GenerationEngine:
         input_ids = torch.tensor([generated_ids], dtype=torch.long, device=self.device)
         pos = input_ids.shape[1]
 
+        # Модель не поддерживает позиции дальше max_position_embeddings — RoPE
+        # буферы (rope_cos/rope_sin) посчитаны только до этой длины, а KV-кеш,
+        # в отличие от src/engine/generate.py, не подрезает окно контекста.
+        # Без этой проверки выход за пределы дал бы пустой срез rope_cos и
+        # непонятную ошибку вида "shape '[1, 1, N]' is invalid for input of size 0"
+        # вместо явного сообщения о причине
+        max_position_embeddings = self.model.trasformer_block[0].attention.rope_cos.shape[0]
+        if pos > max_position_embeddings:
+            raise ValueError(
+                f"Промпт ({pos} токенов) длиннее max_position_embeddings модели "
+                f"({max_position_embeddings}) — сократи промпт"
+            )
+
         self.reset_cache()
 
         # Prefill: прогоняем весь промпт (+BOS) целиком
         logits = self._forward_with_cache(input_ids, start_pos=0)
 
         for _ in range(max_new_tokens):
-            next_logits = logits[:, -1, :] / max(temperature, 1e-6)
+            # Достигли предела контекста модели — останавливаемся, отдаём то,
+            # что уже сгенерировано, вместо падения на пустом RoPE-срезе
+            if pos >= max_position_embeddings:
+                break
+
+            next_logits = logits[:, -1, :].clone()
+
+            # Repetition penalty — тот же принцип, что в src/engine/generate.py:
+            # штрафуем токены, которые уже встречались в generated_ids (промпт +
+            # уже сгенерированное), чтобы не проваливаться в буквальные повторы
+            if repetition_penalty != 1.0:
+                for token_id in set(generated_ids):
+                    if next_logits[0, token_id] > 0:
+                        next_logits[0, token_id] /= repetition_penalty
+                    else:
+                        next_logits[0, token_id] *= repetition_penalty
+
+            next_logits = next_logits / max(temperature, 1e-6)
 
             if top_k is not None and top_k > 0:
                 top_k_eff = min(top_k, next_logits.size(-1))
                 indices_to_remove = next_logits < torch.topk(next_logits, top_k_eff)[0][..., -1, None]
                 next_logits[indices_to_remove] = -float("inf")
+
+            if top_p is not None:
+                sorted_logits, sorted_indices = torch.sort(next_logits, dim=-1, descending=True)
+                cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+                sorted_mask = cumulative_probs - F.softmax(sorted_logits, dim=-1) > top_p
+                sorted_logits[sorted_mask] = -float("inf")
+                next_logits = torch.full_like(next_logits, -float("inf"))
+                next_logits.scatter_(1, sorted_indices, sorted_logits)
 
             probs = F.softmax(next_logits, dim=-1)
             next_id = torch.multinomial(probs, num_samples=1)  # (batch, 1)

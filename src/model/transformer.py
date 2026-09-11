@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from src.model.mlp import SwiGLU
-from src.model.attention import Attention
+from src.model.attention import Attention, build_causal_padding_mask
 from src.model.transformer_block import TransformerBlock
 
 
@@ -38,15 +38,20 @@ class Transformer(nn.Module):
         self.lm_head = nn.Linear(hidden_size, vocab_size)
 
 
-    # Функция прямого прохода
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    # Функция прямого прохода.
+    # attention_mask: [batch, seq_len], 1=реальный токен, 0=паддинг. None (по
+    # умолчанию) -> обычный причинный forward, как было всегда (pretrain).
+    # Задан -> строим причинность+padding маску один раз, передаём во все блоки
+    def forward(self, x: torch.Tensor, attention_mask: torch.Tensor | None = None) -> torch.Tensor:
+
+        attn_mask = build_causal_padding_mask(attention_mask) if attention_mask is not None else None
 
         # Эмбеддинг
         x = self.embedding(x)
 
         # Блоки трансформера
         for block in self.trasformer_block:
-            x = block(x)
+            x = block(x, attn_mask=attn_mask)
 
         # Нормализация
         x = self.final_norm(x)
