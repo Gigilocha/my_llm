@@ -22,7 +22,7 @@ pre_training_data:
   en_quantity: 20
 
   code_sources:
-    - dataset_name: HuggingFaceCode/stack-v3-train
+    - dataset_name: OpenCoder-LLM/opc-fineweb-code-corpus
       split: train
       weight: 1.0
   code_quantity: 20
@@ -35,32 +35,39 @@ pre_training_data:
 
 # Данные для fine-tuning (SFT)
 sft_data:
-  # ВНИМАНИЕ: instruction_field/output_field/system_field — предположение по
-  # результатам поиска (dataset card), НЕ проверено на реальной схеме данных.
-  # cache_sft_data() упадёт с понятной ошибкой при первом расхождении —
-  # поправь имена полей по этой ошибке, если она возникнет
+  # ВНИМАНИЕ: имена полей — предположение по описанию. cache_sft_data()
+  # упадёт с понятной ошибкой и списком реальных полей при первом расхождении
   sources:
+    # T-Wix-instag, код (supertag=code) — 121686 строк / 24.36% в источнике.
+    # Отдельный источник от "остального" T-Wix (см. ниже), чтобы не задваивать
+    # одни и те же примеры в обоих пулах и контролировать долю кода независимо
+    - dataset_name: concretejungles/T-Wix-instag
+      split: train
+      weight: 1.5
+      messages_field: messages
+      filter_field: supertag
+      filter_values: [code]
+      cache_name: t-wix-code
+
+    # T-Wix-instag, всё остальное — явный список всех supertag, КРОМЕ code
+    # (не "not code", а конкретный список — наш фильтр matching-по-списку,
+    # не exclusion; таксономия версии 2026-04-28: math/code/science/
+    # general-instruction/general-knowledge/writing)
     - dataset_name: concretejungles/T-Wix-instag
       split: train
       weight: 1.0
-      instruction_field: instruction
-      output_field: output
-      system_field: system
+      messages_field: messages
+      filter_field: supertag
+      filter_values: [math, science, general-instruction, general-knowledge, writing]
+      cache_name: t-wix-general
 
     - dataset_name: nyuuzyou/EagleSFT
-      split: train
+      split: en
       weight: 1.0
-      instruction_field: question
-      output_field: answer
+      messages_field: messages
 
-    # Непроверенное происхождение (см. обсуждение) — маленький вес, пока не
-    # прочитаны глазами хотя бы 20-30 примеров
-    - dataset_name: lazarus19/Vibe-Coding-Instruct
-      split: train
-      weight: 0.15
-      instruction_field: instruction
-      output_field: output
-
+  # Vibe-Coding-Instruct убран: проверили глазами — вопреки названию, кода
+  # там нет вообще, только английский текст. T-Wix-code (выше) его заменяет
   cache_docs_per_source: 200000
   val_split_ratio: 0.01
   seed: 42

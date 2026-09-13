@@ -1,7 +1,4 @@
-# Параметры генерации по умолчанию — используются base_eval.py, sft_eval.py и
-# GenerationEngine, если конкретный вызов их явно не переопределяет (например,
-# через CLI-флаги --temperature/--top-k у base_eval.py)
-
+# Конфиг для генерации текста с помощью модели
 use_kv_cache: true       # GenerationEngine (с KV-кешем) vs generate.py (наивный, без кеша)
 max_new_tokens: 100
 temperature: 0.7

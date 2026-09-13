@@ -10,17 +10,19 @@ from src.common.config import SFTSource, SFTData
 
 
 def _local_dir_for_sft_source(source: SFTSource, data_dir: Path, split: str) -> Path:
-    name = source.dataset_name.replace("/", "_")
-    if source.subset:
-        name = f"{name}__{source.subset.replace('/', '_')}"
+    if source.cache_name:
+        name = source.cache_name.replace("/", "_")
+    else:
+        name = source.dataset_name.replace("/", "_")
+        if source.subset:
+            name = f"{name}__{source.subset.replace('/', '_')}"
     return data_dir / "sft" / split / name
 
 
-# Проверяем, что настроенные instruction_field/output_field/system_field/input_field
-# реально существуют в первом документе источника — ДО того, как молча закешируем
-# тысячи пустых примеров. Та же ошибка, что уже ловили на stack-v3-train (там
-# doc.get("text") возвращал "" для каждого документа, потому что схема была
-# repo-уровня, а не файл-уровня) — здесь она проявилась бы точно так же тихо
+# Проверяем, что настроенные поля реально существуют в первом документе
+# источника — ДО того, как молча закешируем тысячи пустых примеров. Та же
+# ошибка, что уже ловили на stack-v3-train (там doc.get("text") возвращал ""
+# для каждого документа, потому что схема была repo-уровня, а не файл-уровня)
 def _peek_and_validate_fields(stream_iter, source: SFTSource):
     try:
         first = next(stream_iter)
@@ -28,33 +30,73 @@ def _peek_and_validate_fields(stream_iter, source: SFTSource):
         raise ValueError(f"{source.dataset_name}: источник пуст (ни одного документа)")
 
     available = set(first.keys())
-    required = {source.instruction_field, source.output_field}
-    if source.input_field:
-        required.add(source.input_field)
-    if source.system_field:
-        required.add(source.system_field)
+
+    if source.messages_field is not None:
+        required = {source.messages_field}
+    else:
+        required = {source.instruction_field, source.output_field}
+        if source.input_field:
+            required.add(source.input_field)
+        if source.system_field:
+            required.add(source.system_field)
+    if source.filter_field is not None:
+        required.add(source.filter_field)
 
     missing = required - available
     if missing:
         raise ValueError(
             f"{source.dataset_name}: поля {sorted(missing)} не найдены в данных. "
             f"Реально доступные поля: {sorted(available)}. "
-            f"Поправь instruction_field/output_field/input_field/system_field в data_config.yaml"
+            f"Поправь messages_field (или instruction_field/output_field/input_field/system_field) в data_config.yaml"
         )
 
     return chain([first], stream_iter)
 
 
+_VALID_ROLES = {"system", "user", "assistant"}
+
+
+# Нормализует документ в {"messages": [...]} независимо от исходного формата —
+# дальше по пайплайну (форматирование, маскирование) работаем только с этим
+# единым представлением, не заботясь о том, из какого источника пришёл пример
 def _extract_sft_example(doc: dict, source: SFTSource) -> dict | None:
+    if source.messages_field is not None:
+        raw_messages = doc.get(source.messages_field)
+        if not raw_messages:
+            return None
+
+        messages = []
+        for m in raw_messages:
+            role = m.get("role")
+            content = str(m.get("content") or "").strip()
+            if role not in _VALID_ROLES or not content:
+                continue
+            messages.append({"role": role, "content": content})
+
+        has_user = any(m["role"] == "user" for m in messages)
+        has_assistant = any(m["role"] == "assistant" for m in messages)
+        if not (has_user and has_assistant):
+            return None
+
+        return {"messages": messages}
+
+    # Формат Б: instruction/output -> messages из одного user+assistant хода
     instruction = str(doc.get(source.instruction_field) or "").strip()
     output = str(doc.get(source.output_field) or "").strip()
     if not instruction or not output:
         return None
 
-    example = {"instruction": instruction, "output": output}
-    example["input"] = str(doc.get(source.input_field) or "").strip() if source.input_field else ""
-    example["system"] = str(doc.get(source.system_field) or "").strip() if source.system_field else ""
-    return example
+    user_content = instruction
+    if source.input_field and doc.get(source.input_field):
+        user_content += "\n" + str(doc[source.input_field]).strip()
+
+    messages = []
+    if source.system_field and doc.get(source.system_field):
+        messages.append({"role": "system", "content": str(doc[source.system_field]).strip()})
+    messages.append({"role": "user", "content": user_content})
+    messages.append({"role": "assistant", "content": output})
+
+    return {"messages": messages}
 
 
 def _consume(iterator, n: int) -> None:
@@ -101,6 +143,8 @@ def cache_sft_source_to_disk(
 
     def valid_examples():
         for doc in stream_iter:
+            if source.filter_field is not None and doc.get(source.filter_field) not in source.filter_values:
+                continue
             ex = _extract_sft_example(doc, source)
             if ex is not None:
                 yield ex

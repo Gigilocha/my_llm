@@ -1,9 +1,9 @@
 # Параметры токенизатора
 algorithm: bpe
 library: tokenizers  # HF tokenizers, для совместимости с AutoTokenizer
-vocab_size: 16384
+vocab_size: 65536
 
-train_sample_size: 300000  # кол-во документов для обучения токенизатора, не весь корпус
+train_sample_size: 2_000_000  # кол-во документов для обучения токенизатора, не весь корпус
 
 special_tokens:
   bos: <|bos|>

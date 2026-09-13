@@ -9,7 +9,7 @@ from src.common.config import get_config, PROJECT_ROOT
 from src.common.device import resolve_device, get_device_info
 from src.common.logger import setup_logger
 from src.data.sft_dataset import build_sft_mix_from_disk
-from src.data.sft_format import sft_examples_to_tokenized, format_sft_texts
+from src.data.sft_format import sft_examples_to_tokenized, format_prompt_for_generation
 from src.data.sft_dataloader import collate_sft_batch
 from src.model.transformer import Transformer
 from src.training.checkpoint import find_latest_checkpoint, load_checkpoint
@@ -23,16 +23,16 @@ from src.engine.select import make_generate_fn
 # а не просто продолжать предложение
 TEST_INSTRUCTIONS = {
     "rus": [
-        {"instruction": "Объясни, что такое рекурсия, простыми словами.", "output": "", "input": "", "system": ""},
-        {"instruction": "Напиши короткое стихотворение про осень.", "output": "", "input": "", "system": ""},
+        {"messages": [{"role": "user", "content": "Объясни, что такое рекурсия, простыми словами."}]},
+        {"messages": [{"role": "user", "content": "Напиши короткое стихотворение про осень."}]},
     ],
     "en": [
-        {"instruction": "Explain the difference between a list and a tuple in Python.", "output": "", "input": "", "system": ""},
-        {"instruction": "What are the main causes of climate change?", "output": "", "input": "", "system": ""},
+        {"messages": [{"role": "user", "content": "Explain the difference between a list and a tuple in Python."}]},
+        {"messages": [{"role": "user", "content": "What are the main causes of climate change?"}]},
     ],
     "code": [
-        {"instruction": "Write a Python function that checks if a number is prime.", "output": "", "input": "", "system": ""},
-        {"instruction": "Напиши функцию сортировки пузырьком на Python.", "output": "", "input": "", "system": ""},
+        {"messages": [{"role": "user", "content": "Write a Python function that checks if a number is prime."}]},
+        {"messages": [{"role": "user", "content": "Напиши функцию сортировки пузырьком на Python."}]},
     ],
 }
 
@@ -144,11 +144,12 @@ def main():
     generation_log = []
     for domain, examples in TEST_INSTRUCTIONS.items():
         for example in examples:
-            prompt_text, _ = format_sft_texts(example, special_tokens)
+            instruction_text = example["messages"][0]["content"]
+            prompt_text = format_prompt_for_generation(example["messages"], special_tokens)
             response = generate_fn(prompt_text)
-            logger.info(f"[{domain}] инструкция: {example['instruction']!r}")
+            logger.info(f"[{domain}] инструкция: {instruction_text!r}")
             logger.info(f"[{domain}] ответ: {response!r}")
-            generation_log.append(f"=== {domain} ===\nИнструкция: {example['instruction']}\nОтвет: {response}\n")
+            generation_log.append(f"=== {domain} ===\nИнструкция: {instruction_text}\nОтвет: {response}\n")
 
     mlflow.log_text("\n".join(generation_log), "sft_generations.txt")
     mlflow.end_run()

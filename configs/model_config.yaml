@@ -1,24 +1,24 @@
 # Параметры модели 
 model: 
-  hidden_size: 768
-  num_layers: 8
-  vocab_size: 16384
-  max_position_embeddings: 2048
-  norm_eps: 0.000001
+  hidden_size: 768                  # Размер скрытого состояния модели
+  num_layers: 8                     # Количество слоев в модели
+  vocab_size: 16384                 # Размер словаря модели
+  max_position_embeddings: 2048     # Максимальная длина последовательности, которую модель может обрабатывать
+  norm_eps: 0.000001                # Epsilon для нормализации
 
 
 # Параметры мехинизма внимания
 attention:
-  num_heads: 12
-  num_kv_heads: 4
-  head_dim: 64
-  rope_theta: 10000.0
-  use_qk_norm: true
-  qk_norm_eps: 0.000001
+  num_heads: 12                     # Количество Q голов в механизме внимания
+  num_kv_heads: 4                   # Количество голов K и V в механизме внимания
+  head_dim: 64                      # Размерность каждой головы внимания
+  rope_theta: 10000.0               # Параметр для RoPE (Rotary Positional Embedding)
+  use_qk_norm: true                 # Использовать нормализацию Q и K в механизме внимания
+  qk_norm_eps: 0.000001             # Epsilon для нормализации Q и K в механизме внимания
 
 
 # Параметры MLP
 mlp:
-  intermediate_size: 2048
+  intermediate_size: 2048           # Размер промежуточного слоя в MLP
 
 

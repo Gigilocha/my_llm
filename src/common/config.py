@@ -2,7 +2,7 @@ from pathlib import Path
 from functools import lru_cache
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -125,10 +125,45 @@ class SFTSource(BaseModel):
     subset: str | None = None
     split: str = "train"
     weight: float = 1.0
-    instruction_field: str = "instruction"
+
+    # Формат А (предпочтительный): готовый список сообщений — [{"role": ...,
+    # "content": ...}, ...] (ShareGPT/OpenAI-style chat format). Так хранит
+    # большинство современных SFT-датасетов (T-Wix-instag, EagleSFT — оба
+    # в этом формате). Поддерживает multi-turn "из коробки"
+    messages_field: str | None = None
+
+    # Формат Б: плоские instruction/output — для источников без messages
+    instruction_field: str | None = None
     input_field: str | None = None
-    output_field: str = "output"
+    output_field: str | None = None
     system_field: str | None = None
+
+    # Фильтр по значению плоского поля-метки (например supertag=code у
+    # T-Wix-instag) — позволяет завести ОДИН датасет как НЕСКОЛЬКО источников
+    # с разными весами (код отдельно от остального), не задваивая примеры.
+    # filter_values — список: документ проходит, если значение поля есть в списке
+    filter_field: str | None = None
+    filter_values: list[str] | None = None
+
+    # Явное имя для папки кеша — обязательно, когда один dataset_name встречается
+    # в конфиге больше одного раза (иначе разные filter_values затрут друг друга
+    # на диске: путь строится из dataset_name, а filter_values в нём не участвует)
+    cache_name: str | None = None
+
+    @model_validator(mode="after")
+    def _check_format_configured(self) -> "SFTSource":
+        has_messages = self.messages_field is not None
+        has_flat = self.instruction_field is not None and self.output_field is not None
+        if has_messages == has_flat:  # ни один не задан, или заданы оба разом
+            raise ValueError(
+                f"{self.dataset_name}: укажи либо messages_field, либо оба "
+                f"instruction_field/output_field — ровно один формат, не оба и не ни одного"
+            )
+        if (self.filter_field is None) != (self.filter_values is None):
+            raise ValueError(
+                f"{self.dataset_name}: filter_field и filter_values задаются вместе или не задаются вообще"
+            )
+        return self
 
 class SFTData(BaseModel):
     sources: list[SFTSource] = []
