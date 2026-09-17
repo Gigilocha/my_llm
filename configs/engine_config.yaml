@@ -1,6 +1,6 @@
 # Конфиг для генерации текста с помощью модели
 use_kv_cache: true       # GenerationEngine (с KV-кешем) vs generate.py (наивный, без кеша)
-max_new_tokens: 100
+max_new_tokens: 2048
 temperature: 0.7
 top_k: 50
 top_p: null

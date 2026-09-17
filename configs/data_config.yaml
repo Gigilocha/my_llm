@@ -4,6 +4,7 @@ pre_training_data:
   seed: 42
   val_split_ratio: 0.01
 
+  # Русский язык
   rus_sources:
     - dataset_name: HuggingFaceFW/fineweb-2
       subset: rus_Cyrl
@@ -14,45 +15,41 @@ pre_training_data:
       split: train
       weight: 0.3
   rus_quantity: 60   # % от общего датасета
+  rus_cache_docs: 1200000   #  количество документов, которые будут закешированы для ускорения обучения
 
+  # Англиский язык
   en_sources:
     - dataset_name: HuggingFaceFW/fineweb
       split: train
       weight: 1.0
   en_quantity: 20
+  en_cache_docs: 400000
 
+  # Код
   code_sources:
-    - dataset_name: OpenCoder-LLM/opc-fineweb-code-corpus
+    - dataset_name: HuggingFaceCode/stack-v3-train
       split: train
       weight: 1.0
   code_quantity: 20
-
-  # Кеширование данных на диск
-  rus_cache_docs: 3500000
-  en_cache_docs: 1500000
-  code_cache_docs: 2000000
+  code_cache_docs: 400000
   
+# --------------------------------------------------------------------  
 
 # Данные для fine-tuning (SFT)
 sft_data:
-  # ВНИМАНИЕ: имена полей — предположение по описанию. cache_sft_data()
-  # упадёт с понятной ошибкой и списком реальных полей при первом расхождении
+  seed: 42
+  val_split_ratio: 0.01
+  cache_docs_per_source: 200000
+
   sources:
-    # T-Wix-instag, код (supertag=code) — 121686 строк / 24.36% в источнике.
-    # Отдельный источник от "остального" T-Wix (см. ниже), чтобы не задваивать
-    # одни и те же примеры в обоих пулах и контролировать долю кода независимо
-    - dataset_name: concretejungles/T-Wix-instag
+    - dataset_name: concretejungles/T-Wix-instag 
       split: train
-      weight: 1.5
+      weight: 1.0
       messages_field: messages
       filter_field: supertag
       filter_values: [code]
       cache_name: t-wix-code
 
-    # T-Wix-instag, всё остальное — явный список всех supertag, КРОМЕ code
-    # (не "not code", а конкретный список — наш фильтр matching-по-списку,
-    # не exclusion; таксономия версии 2026-04-28: math/code/science/
-    # general-instruction/general-knowledge/writing)
     - dataset_name: concretejungles/T-Wix-instag
       split: train
       weight: 1.0
@@ -66,12 +63,7 @@ sft_data:
       weight: 1.0
       messages_field: messages
 
-  # Vibe-Coding-Instruct убран: проверили глазами — вопреки названию, кода
-  # там нет вообще, только английский текст. T-Wix-code (выше) его заменяет
-  cache_docs_per_source: 200000
-  val_split_ratio: 0.01
-  seed: 42
-
+# ---------------------------------------------------------------------
 
 # Данные для fine-tuning (RLFT)
 rlft_data:

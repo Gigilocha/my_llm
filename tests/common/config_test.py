@@ -59,9 +59,10 @@ sft_data:
   val_split_ratio: 0.01
   seed: 1
 rlft_data:
-  rus_sources: []
-  en_sources: []
-  code_sources: []
+  sources: []
+  cache_docs_per_source: 100
+  val_split_ratio: 0.01
+  seed: 1
 """
 
 TOKENIZER_YAML = """

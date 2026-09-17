@@ -165,6 +165,44 @@ class SFTSource(BaseModel):
             )
         return self
 
+# Источник preference-данных для DPO: на каждый пример нужны промпт и ДВА
+# ответа — предпочтительный (chosen) и отвергнутый (rejected). Никакой
+# reward-модели не требуется, предпочтение задано прямо в данных
+class DPOSource(BaseModel):
+    dataset_name: str
+    subset: str | None = None
+    split: str = "train"
+    weight: float = 1.0
+
+    prompt_field: str = "prompt"
+    chosen_field: str = "chosen"
+    rejected_field: str = "rejected"
+
+    # chosen/rejected бывают либо строкой, либо списком messages (тогда берём
+    # content последнего хода assistant). prompt при as_messages=True тоже
+    # может быть списком messages — берём его как историю диалога целиком
+    as_messages: bool = False
+
+    filter_field: str | None = None
+    filter_values: list[str] | None = None
+    cache_name: str | None = None
+
+    @model_validator(mode="after")
+    def _check_filter_configured(self) -> "DPOSource":
+        if (self.filter_field is None) != (self.filter_values is None):
+            raise ValueError(
+                f"{self.dataset_name}: filter_field и filter_values задаются вместе или не задаются вообще"
+            )
+        return self
+
+
+class DPOData(BaseModel):
+    sources: list[DPOSource] = []
+    cache_docs_per_source: int = 50_000
+    val_split_ratio: float = 0.01
+    seed: int = 42
+
+
 class SFTData(BaseModel):
     sources: list[SFTSource] = []
     cache_docs_per_source: int = 100_000
@@ -175,7 +213,7 @@ class SFTData(BaseModel):
 class DataConfig(BaseModel):
     pre_training_data: PretrainData
     sft_data: SFTData
-    rlft_data: SplitData
+    rlft_data: DPOData
 
 
 # Токенизатор
@@ -257,7 +295,24 @@ class SFTConfig(BaseModel):
 
 # Класс конфигурации тонкой настройки (rlft)
 class RLFTConfig(BaseModel):
-    pass
+    max_len: int
+    batch_size: int
+    gradient_accumulation_steps: int
+    max_steps: int
+    learning_rate: float
+    warmup_steps: int
+    min_learning_rate: float
+    grad_clip_norm: float
+    weight_decay: float
+    eval_interval: int
+    checkpoint_interval: int
+    # beta — насколько сильно политика может отходить от reference-модели.
+    # Меньше beta = свободнее отход (и выше риск деградации языка), больше =
+    # ближе к SFT-модели. 0.1 — типичное значение из статьи DPO
+    beta: float = 0.1
+    muon_learning_rate: float = 0.003
+    muon_weight_decay: float = 0.0
+    muon_momentum: float = 0.95
 
 # Общий класс для обучения
 class TrainingConfig(BaseModel):  

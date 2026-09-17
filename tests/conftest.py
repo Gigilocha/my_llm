@@ -44,7 +44,19 @@ sft:
   weight_decay: 0.01
   eval_interval: 5
   checkpoint_interval: 5
-rlft: {}
+rlft:
+  max_len: 16
+  batch_size: 2
+  gradient_accumulation_steps: 1
+  max_steps: 10
+  learning_rate: 0.000005
+  warmup_steps: 1
+  min_learning_rate: 0.0000005
+  grad_clip_norm: 1.0
+  weight_decay: 0.0
+  eval_interval: 5
+  checkpoint_interval: 5
+  beta: 0.1
 """
 
 

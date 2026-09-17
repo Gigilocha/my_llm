@@ -20,7 +20,7 @@ from src.engine.select import make_generate_fn
 # Промпты для качественной проверки — по одному-два на язык, разной сложности
 GENERATION_PROMPTS = {
     "rus": [
-        "Искусственный интеллект — это",
+        "Литва — это",
         "В новостях сегодня сообщили, что",
     ],
     "en": [
@@ -28,7 +28,7 @@ GENERATION_PROMPTS = {
         "In today's news, scientists announced",
     ],
     "code": [
-        "def fibonacci(n):",
+        "def sum(a, b):",
         "class LinkedList:",
     ],
 }

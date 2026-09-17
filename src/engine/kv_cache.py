@@ -127,6 +127,7 @@ class GenerationEngine:
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
         repetition_penalty: Optional[float] = None,
+        return_full_text: bool = True,
     ) -> str:
 
         max_new_tokens = max_new_tokens or self.max_new_tokens
@@ -140,6 +141,7 @@ class GenerationEngine:
         # как и в src/engine/generate.py
         prompt_ids = tokenizer_encode(self.tokenizer, prompt, add_special_tokens=False)
         generated_ids = [self.tokenizer.bos_token_id] + prompt_ids
+        prompt_len = len(generated_ids)  # для return_full_text=False
         input_ids = torch.tensor([generated_ids], dtype=torch.long, device=self.device)
         pos = input_ids.shape[1]
 
@@ -206,7 +208,7 @@ class GenerationEngine:
             logits = self._forward_with_cache(next_id, start_pos=pos)
             pos += 1
 
-        return tokenizer_decode(self.tokenizer, generated_ids)
+        return tokenizer_decode(self.tokenizer, generated_ids if return_full_text else generated_ids[prompt_len:])
 
     # Память, занятая KV-кешем (в MB).
     def cache_memory_mb(self) -> float:

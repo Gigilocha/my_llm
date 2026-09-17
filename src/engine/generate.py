@@ -29,6 +29,7 @@ def generate(
     top_k: int | None = 50,
     top_p: float | None = None,
     repetition_penalty: float = 1.3,
+    return_full_text: bool = True,
 ) -> str:
     was_training = model.training
     model.eval()
@@ -38,6 +39,7 @@ def generate(
     # закончена" ровно в момент, когда мы просим её продолжать
     prompt_ids = encode(tokenizer, prompt, add_special_tokens=False)
     ids = [tokenizer.bos_token_id] + prompt_ids
+    prompt_len = len(ids)  # для return_full_text=False — где заканчивается промпт
 
     input_ids = torch.tensor([ids], dtype=torch.long, device=device)
 
@@ -103,4 +105,6 @@ def generate(
         model.train()
 
     generated_ids = input_ids[0].tolist()
+    if not return_full_text:
+        generated_ids = generated_ids[prompt_len:]
     return decode(tokenizer, generated_ids)

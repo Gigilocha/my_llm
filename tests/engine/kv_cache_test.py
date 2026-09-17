@@ -111,3 +111,35 @@ def test_generate_stops_gracefully_at_max_position_embeddings():
     long_prompt = "hello world test data sample " * 20
     with pytest.raises(ValueError, match="max_position_embeddings"):
         engine.generate(long_prompt)
+
+
+# return_full_text=False должен вернуть ТОЛЬКО новую часть — без промпта.
+# Проверяем на уровне длины (в символах/токенах не менее надёжно, чем на
+# уровне текста, где BPE-декодирование частичных последовательностей может
+# давать неожиданные пробелы при сравнении подстрок)
+def test_return_full_text_false_excludes_prompt():
+    from transformers import PreTrainedTokenizerFast
+    from tokenizers import Tokenizer, models, pre_tokenizers
+    from tokenizers.trainers import BpeTrainer
+
+    tok = Tokenizer(models.BPE(unk_token="<|unk|>"))
+    tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
+    specials = ["<|unk|>", "<|bos|>", "<|eos|>", "<|pad|>"]
+    trainer = BpeTrainer(vocab_size=100, special_tokens=specials)
+    tok.train_from_iterator(["hello world test data sample"] * 20, trainer=trainer)
+    tokenizer = PreTrainedTokenizerFast(
+        tokenizer_object=tok, bos_token="<|bos|>", eos_token="<|eos|>", pad_token="<|pad|>",
+    )
+
+    torch.manual_seed(3)
+    model = _make_tiny_model()
+    engine = GenerationEngine(model, tokenizer, device="cpu", max_new_tokens=10, temperature=0.0)  # greedy — детерминизм
+
+    full_text = engine.generate("hello world", return_full_text=True)
+    new_only = engine.generate("hello world", return_full_text=False)
+
+    # "Только новое" должно быть заметно короче полного текста (промпт вырезан)
+    assert len(new_only) < len(full_text)
+    # И полный текст должен буквально заканчиваться на "только новое" —
+    # это гарантирует, что вырезали именно префикс (промпт), а не что-то другое
+    assert full_text.endswith(new_only)

@@ -3,9 +3,9 @@ pre_training:
   max_len: 2048                       # длина чанков из dataloader, частая практика — начать с короткого контекста для скорости, потом дотренеровать до полного
   batch_size: 8                       # сколько последовательностей физически помещается в один forward-проход на GPU
   gradient_accumulation_steps: 2      # колько таких мини-батчей накопить перед реальным шагом оптимизатора, чтобы эффективный размер батча был больше, чем позволяет память GPU
-  max_steps: 1000                     # сколько всего шагов обучения сделать
+  max_steps: 95001                    # сколько всего шагов обучения сделать
   learning_rate: 0.0003               # целевое/пиковое значение изменения весов в обучении
-  warmup_steps: 100                   # несколько первых сотен/тысяч шагов lr растёт от почти нуля до целевого значения — это защищает от нестабильности в самом начале, когда веса ещё случайные
+  warmup_steps: 1500                   # несколько первых сотен/тысяч шагов lr растёт от почти нуля до целевого значения — это защищает от нестабильности в самом начале, когда веса ещё случайные
   min_learning_rate: 0.00003          # до какого значения rl затухать
   grad_clip_norm: 1.0                 # защита от "взрыва" градиентов, максимальная норма градиента, если превышена — обрезается
   weight_decay: 0.1                   # регуляризация, штраф за слишком большие веса
@@ -15,24 +15,41 @@ pre_training:
   muon_weight_decay: 0.0              # регуляризация для muon
   muon_momentum: 0.95                 # моментум для muon, как сильно учитывать прошлые градиенты при обновлении весов
 
+# ----------------------------------------------------------------
 
 # Конфиг для тонкого обучения модели (sft)
 sft:
   max_len: 2048
   batch_size: 8
   gradient_accumulation_steps: 2
-  max_steps: 5000
+  max_steps: 65001
   learning_rate: 0.00005
-  warmup_steps: 100
+  warmup_steps: 1289
   min_learning_rate: 0.000005
   grad_clip_norm: 1.0
   weight_decay: 0.01
-  eval_interval: 200
-  checkpoint_interval: 500
+  eval_interval: 1000
+  checkpoint_interval: 5000
   muon_learning_rate: 0.003
   muon_weight_decay: 0.0
   muon_momentum: 0.95
 
+# -----------------------------------------------------------------
 
 # Конфиг для тонкого обучения модели (rlft)
-rlft: {}
+rlft:
+  max_len: 1024
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  max_steps: 2000
+  learning_rate: 0.000005
+  warmup_steps: 50
+  min_learning_rate: 0.0000005
+  grad_clip_norm: 1.0
+  weight_decay: 0.0
+  eval_interval: 100
+  checkpoint_interval: 250
+  beta: 0.1
+  muon_learning_rate: 0.0003
+  muon_weight_decay: 0.0
+  muon_momentum: 0.95

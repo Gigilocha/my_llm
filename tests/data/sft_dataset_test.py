@@ -114,3 +114,42 @@ def test_cache_dir_disambiguated_by_cache_name():
     assert code_dir != general_dir
     assert "code" in str(code_dir)
     assert "general" in str(general_dir)
+
+
+# --- Явная проверка на утечку train/val для SFT-кеширования (тот же класс
+# бага, что уже ловили в pretrain-кешировании — val был подмножеством train,
+# пока не переписали на общий непрерывный итератор с val первым) ---
+
+def test_sft_cache_train_val_do_not_overlap(tmp_path):
+    from unittest.mock import patch
+    import src.data.sft_dataset as sft_dataset_module
+    import pyarrow.parquet as pq
+
+    def fake_stream():
+        for i in range(200):
+            yield {"messages": [
+                {"role": "user", "content": f"doc_{i}"},
+                {"role": "assistant", "content": f"answer_{i}"},
+            ]}
+
+    source = SFTSource(dataset_name="fake/sft-leak-test", messages_field="messages")
+
+    with patch.object(sft_dataset_module, "load_dataset", return_value=fake_stream()):
+        train_dir, val_dir = sft_dataset_module.cache_sft_source_to_disk(
+            source, tmp_path, train_docs=160, val_docs=40,
+        )
+
+    def read_user_contents(shard_dir):
+        texts = set()
+        for f in shard_dir.glob("part_*.parquet"):
+            for ex in pq.read_table(f).to_pylist():
+                texts.add(ex["messages"][0]["content"])  # user-сообщение с уникальным doc_i
+        return texts
+
+    train_docs = read_user_contents(train_dir)
+    val_docs = read_user_contents(val_dir)
+
+    assert len(train_docs) == 160
+    assert len(val_docs) == 40
+    overlap = train_docs & val_docs
+    assert not overlap, f"УТЕЧКА: {len(overlap)} документов пересекаются между SFT train и val!"
