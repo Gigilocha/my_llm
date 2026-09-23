@@ -9,6 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Определение корня проекта
 PROJECT_ROOT = Path(__file__).parents[2].resolve()
 
+# ------------------------------------------------------------------------------------------------
 
 # Настройки из .env
 class EnvSettings(BaseSettings):
@@ -28,6 +29,7 @@ class EnvSettings(BaseSettings):
     data_dir: Path
     outputs_dir: Path
 
+# ------------------------------------------------------------------------------------------------
 
 # Мониторинг
 # Конфиг мониторинга памяти
@@ -81,6 +83,7 @@ class Monitoring(BaseModel):
     logging: Logging
     mlflow: MlFlow
 
+# ------------------------------------------------------------------------------------------------
 
 # Данные
 # Конфиг ресурсов данных
@@ -215,6 +218,7 @@ class DataConfig(BaseModel):
     sft_data: SFTData
     rlft_data: DPOData
 
+# ------------------------------------------------------------------------------------------------
 
 # Токенизатор
 class TokenizerConfig(BaseModel):
@@ -225,6 +229,7 @@ class TokenizerConfig(BaseModel):
     special_tokens: dict
     split_pattern: str 
 
+# ------------------------------------------------------------------------------------------------
 
 # Модель 
 # Класс конфигурации модели
@@ -255,6 +260,7 @@ class GPTConfig(BaseModel):
     attention: AttentionConfig
     mlp: MLPConfig
 
+# ------------------------------------------------------------------------------------------------
 
 # Обучение
 # Класс конфигурации базового обучения
@@ -320,8 +326,8 @@ class TrainingConfig(BaseModel):
     sft: SFTConfig
     rlft: RLFTConfig
 
+# ------------------------------------------------------------------------------------------------
 
-# Общий конфиг для всего
 # Конфиг движка генерации — параметры сэмплирования по умолчанию и выбор
 # движка (наивный без KV-кеша vs GenerationEngine с кешем). Скрипты могут
 # переопределять отдельные параметры через CLI (см. base_eval.py) — эти
@@ -334,7 +340,9 @@ class EngineConfig(BaseModel):
     top_p: float | None = None
     repetition_penalty: float = 1.3
 
+# ------------------------------------------------------------------------------------------------
 
+# Общий конфиг для всего
 class ExperimentConfig(BaseModel):
     env: EnvSettings
     monitoring: Monitoring
@@ -344,6 +352,7 @@ class ExperimentConfig(BaseModel):
     training: TrainingConfig
     engine: EngineConfig
 
+# ------------------------------------------------------------------------------------------------
 
 # Загрузка .yaml по названию
 def _load_yaml(env: EnvSettings, filename: str) -> dict:
@@ -353,6 +362,7 @@ def _load_yaml(env: EnvSettings, filename: str) -> dict:
         # без этого EngineConfig(**None) упал бы с TypeError
         return yaml.safe_load(f) or {}
 
+# ------------------------------------------------------------------------------------------------
 
 # Получение настроек
 @lru_cache

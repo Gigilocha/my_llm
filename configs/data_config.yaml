@@ -6,16 +6,19 @@ pre_training_data:
 
   # Русский язык
   rus_sources:
+      # Не формальный датасет с разнообразием разговорных предложений 
     - dataset_name: HuggingFaceFW/fineweb-2
       subset: rus_Cyrl
       split: train
-      weight: 0.7
+      weight: 0.7 # Параметр веса источника, чем больше параметр, тем чаще шард будет выбран из всех данных, при 1 данные будут чередоваться 
+      
+      # Датасет википедии с фактами и историей
     - dataset_name: wikimedia/wikipedia
       subset: 20231101.ru
       split: train
       weight: 0.3
-  rus_quantity: 60   # % от общего датасета
-  rus_cache_docs: 1200000   #  количество документов, которые будут закешированы для ускорения обучения
+  rus_quantity: 60 # % от общего датасета
+  rus_cache_docs: 1200000 #  количество документов, которые будут закешированы для ускорения обучения
 
   # Англиский язык
   en_sources:
@@ -36,12 +39,24 @@ pre_training_data:
 # --------------------------------------------------------------------  
 
 # Данные для fine-tuning (SFT)
+# Инструкционное обучение не подразумевает код без инстукций на естественном языке
+# Разделение идет по парно в зависимости от задачи (русский язык +код, англиский язык + общие знания)
 sft_data:
   seed: 42
   val_split_ratio: 0.01
-  cache_docs_per_source: 200000
+  cache_docs_per_source: 5000
 
   sources:
+      # Русский язык (общие знания)
+    - dataset_name: concretejungles/T-Wix-instag
+      split: train
+      weight: 1.0
+      messages_field: messages
+      filter_field: supertag
+      filter_values: [general-knowledge]
+      cache_name: t-wix-general
+
+      # Русский язык (код)
     - dataset_name: concretejungles/T-Wix-instag 
       split: train
       weight: 1.0
@@ -50,14 +65,7 @@ sft_data:
       filter_values: [code]
       cache_name: t-wix-code
 
-    - dataset_name: concretejungles/T-Wix-instag
-      split: train
-      weight: 1.0
-      messages_field: messages
-      filter_field: supertag
-      filter_values: [math, science, general-instruction, general-knowledge, writing]
-      cache_name: t-wix-general
-
+      # Англиский язык (общие знания)
     - dataset_name: nyuuzyou/EagleSFT
       split: en
       weight: 1.0
@@ -67,8 +75,41 @@ sft_data:
 
 # Данные для fine-tuning (RLFT)
 rlft_data:
-  rus_sources: []
-  en_sources: []
-  code_sources: []
+  rus: []
+  en: []
+  code: []
+  
 
+# ---------------------------------------------------------------------
+
+# Данные для Benchmark
+banchmark_data:
+  seed: 42
+
+  sources:
+      # Русский язык
+      # Датасет яндекса с 57 темами.
+    - dataset_name: yandex/WikiWebFacts
+      weight: 1.0
+
+      # Проверка знаний на русском по 57 областям. 
+    - dataset_name: t-tech/ruMMLU-pro
+      weight: 1.0
+
+      # Оценка генерации кода на русском
+    - dataset_name: MERA-evaluation/ruHumanEval
+      weight: 1.0
+
+      # Оценка генерации кода на русском
+    - dataset_name: MERA-evaluation/ruCodeEval
+      weight: 1.0
+
+      # Англиский язык
+      # Это абсолютный стандарт для оценки знаний на англиском. 57 тем.
+    - dataset_name: TIGER-Lab/MMLU-Pro
+      weight: 1.0
+
+      # Оценка математических рассуждений
+    - dataset_name: openai/gsm8k
+      weight: 1.0
 
