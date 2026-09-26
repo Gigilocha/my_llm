@@ -1,17 +1,17 @@
 import argparse
 import math
-import os
 
 import mlflow
 from transformers import PreTrainedTokenizerFast
 
+from src.common.mlflow import setup_mlflow
 from src.common.config import get_config, PROJECT_ROOT
 from src.common.device import resolve_device, get_device_info
 from src.common.logger import setup_logger
-from src.data.sft_dataset import build_sft_mix_from_disk
-from src.data.sft_format import sft_examples_to_tokenized, format_prompt_for_generation
-from src.data.sft_dataloader import collate_sft_batch
-from src.model.transformer import Transformer
+from src.data.dataset import build_sft_mix_from_disk
+from src.data.format import sft_examples_to_tokenized, format_prompt_for_generation
+from src.data.dataloader import collate_padded_batch
+from src.model.build import build_model
 from src.training.checkpoint import find_latest_checkpoint, load_checkpoint
 from src.training.sft_train_step import sft_eval_step
 from src.engine.select import make_generate_fn
@@ -19,8 +19,8 @@ from src.engine.select import make_generate_fn
 
 # Тестовые инструкции для качественной проверки — по языку/домену. В отличие
 # от base_eval.py (продолжение сырого текста), тут промпт форматируется ТАК ЖЕ,
-# как при обучении (format_sft_texts) — модель должна отвечать на вопрос,
-# а не просто продолжать предложение
+# как при обучении (format_prompt_for_generation) — модель должна отвечать на
+# вопрос, а не просто продолжать предложение
 TEST_INSTRUCTIONS = {
     "rus": [
         {"messages": [{"role": "user", "content": "Объясни, что такое рекурсия, простыми словами."}]},
@@ -35,23 +35,6 @@ TEST_INSTRUCTIONS = {
         {"messages": [{"role": "user", "content": "Напиши функцию сортировки пузырьком на Python."}]},
     ],
 }
-
-
-def build_model(config) -> Transformer:
-    return Transformer(
-        vocab_size=config.model.model.vocab_size,
-        num_layer=config.model.model.num_layers,
-        hidden_size=config.model.model.hidden_size,
-        head_dim=config.model.attention.head_dim,
-        num_heads=config.model.attention.num_heads,
-        num_kv_heads=config.model.attention.num_kv_heads,
-        use_qk_norm=config.model.attention.use_qk_norm,
-        qk_norm_eps=config.model.attention.qk_norm_eps,
-        rope_theta=config.model.attention.rope_theta,
-        max_position_embeddings=config.model.model.max_position_embeddings,
-        intermediate_size=config.model.mlp.intermediate_size,
-        norm_eps=config.model.model.norm_eps,
-    )
 
 
 def main():
@@ -85,7 +68,7 @@ def main():
 
     step = args.step if args.step is not None else find_latest_checkpoint(sft_checkpoints_dir)
     if step is None:
-        raise FileNotFoundError(f"Нет SFT-чекпоинтов в {sft_checkpoints_dir} — сначала запусти base_sft.py")
+        raise FileNotFoundError(f"Нет SFT-чекпоинтов в {sft_checkpoints_dir} — сначала запусти sft_train.py")
     logger.info(f"Оцениваю SFT-чекпоинт на шаге {step}")
 
     tokenizer_path = PROJECT_ROOT / config.env.outputs_dir / "tokenizer"
@@ -93,7 +76,7 @@ def main():
     special_tokens = config.tokenizer.special_tokens
 
     model = build_model(config).to(device)
-    load_checkpoint(checkpoint_dir=sft_checkpoints_dir, step=step, model=model)  # optimizer не нужен для оценки
+    load_checkpoint(checkpoint_dir=sft_checkpoints_dir, step=step, model=model, device=device)  # optimizer не нужен для оценки
     model.eval()
 
     sft_config = config.training.sft
@@ -113,7 +96,7 @@ def main():
     for tokenized in tokenized_stream:
         batch_buffer.append(tokenized)
         if len(batch_buffer) == sft_config.batch_size:
-            input_ids, labels, attention_mask = collate_sft_batch(batch_buffer, tokenizer.pad_token_id)
+            input_ids, labels, attention_mask = collate_padded_batch(batch_buffer, tokenizer.pad_token_id)
             input_ids, labels, attention_mask = input_ids.to(device), labels.to(device), attention_mask.to(device)
             losses.append(sft_eval_step(model, input_ids, labels, attention_mask))
             batch_buffer = []
@@ -127,12 +110,7 @@ def main():
     perplexity = math.exp(avg_loss)
     logger.info(f"SFT val_loss={avg_loss:.4f}, perplexity={perplexity:.2f} (по {len(losses)} батчам)")
 
-    os.environ["MLFLOW_ALLOW_FILE_STORE"] = "true"
-    mlflow_dir = PROJECT_ROOT / "outputs" / "mlflow"
-    mlflow_dir.mkdir(parents=True, exist_ok=True)
-    mlflow.set_tracking_uri(f"file:///{mlflow_dir}/mlruns")
-
-    mlflow.start_run(run_name=f"sft_eval_step_{step}")
+    setup_mlflow(run_name=f"sft_eval_step_{step}")
     mlflow.log_param("checkpoint_step", step)
     mlflow.log_metric("sft_val_loss", avg_loss)
     mlflow.log_metric("sft_perplexity", perplexity)

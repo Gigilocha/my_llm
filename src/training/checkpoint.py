@@ -24,12 +24,21 @@ def save_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, step: in
 # Функция загрузки контрольной точки обучения.
 # optimizer=None — для чистой оценки/инференса, где optimizer не нужен вообще
 # (не заставляем вызывающий код собирать Muon+AdamW только чтобы прочитать веса)
-def load_checkpoint(checkpoint_dir: Path, step: int, model: nn.Module, optimizer: torch.optim.Optimizer | None = None):
-    
-    # Загружаем параметры из файла
-    checkpoint = torch.load(checkpoint_dir / f"checkpoint_step_{step}.pt")
+# map_location=device — БЕЗ него torch.load пытается десериализовать тензоры
+# на то устройство, с которого чекпоинт был сохранён (обычно cuda:0). Если
+# грузить на машине без GPU (например, chat.py для быстрой ручной проверки
+# на ноутбуке) — падает с RuntimeError ещё до load_state_dict, потому что
+# сама десериализация требует доступную CUDA. map_location=device сразу
+# перекладывает тензоры на нужное устройство при чтении
+def load_checkpoint(
+    checkpoint_dir: Path,
+    step: int,
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer | None = None,
+    device: str | torch.device = "cpu",
+):
+    checkpoint = torch.load(checkpoint_dir / f"checkpoint_step_{step}.pt", map_location=device)
 
-    # Восстанавливаем модель и (если передан) оптимизатор
     model.load_state_dict(checkpoint["model_state_dict"])
     if optimizer is not None:
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])

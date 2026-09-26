@@ -1,5 +1,6 @@
 from pathlib import Path
 from functools import lru_cache
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
@@ -97,6 +98,12 @@ class DataSource(BaseModel):
     # значение поля "language" внутри files[], по которому фильтруем конкретный
     # язык программирования. None — источник плоский, фильтрация не нужна
     language_filter: str | None = None
+    # Явное имя для папки кеша — обязательно, когда один dataset_name встречается
+    # в конфиге больше одного раза с разным language_filter (например, несколько
+    # языков программирования из одного stack-v3-train) — иначе разные фильтры
+    # затрут друг друга на диске: путь строится из dataset_name, а language_filter
+    # в нём пока не участвует
+    cache_name: str | None = None
 
 # Конфиг разделения данных
 class SplitData(BaseModel):
@@ -106,9 +113,16 @@ class SplitData(BaseModel):
 
 # Конфиг данных для первичного обучения
 class PretrainData(SplitData):
-    max_shard: int
+    rows_per_shard: int = 50_000  # сколько документов держим в памяти перед записью одного parquet-шарда на диск
     seed: int
     val_split_ratio: float
+    # Пороги длины документа (в символах) для clean_text — отсекают почти
+    # пустые обрывки скрейпинга снизу и аномально огромные документы сверху
+    # (обычно испорченный парсинг, а не реальный текст/файл). Дефолты —
+    # предположительные, стоит свериться на реальном распределении длин
+    # через *_data_eval.py перед финальным прогоном
+    min_doc_chars: int = 20
+    max_doc_chars: int = 200_000
     rus_quantity: int
     en_quantity: int
     code_quantity: int
@@ -128,6 +142,11 @@ class SFTSource(BaseModel):
     subset: str | None = None
     split: str = "train"
     weight: float = 1.0
+    # Целевая доля ТОКЕНОВ этого источника в итоговом SFT-миксе (в %, все
+    # source.target_share должны в сумме давать ~100) — задаётся руками,
+    # a weight выше пересчитывается под неё скриптом калибровки (по аналогии
+    # с *_quantity/corrected quantity у pre_training_data), не наоборот
+    target_share: float | None = None
 
     # Формат А (предпочтительный): готовый список сообщений — [{"role": ...,
     # "content": ...}, ...] (ShareGPT/OpenAI-style chat format). Так хранит
@@ -176,6 +195,9 @@ class DPOSource(BaseModel):
     subset: str | None = None
     split: str = "train"
     weight: float = 1.0
+    # Целевая доля ТОКЕНОВ этого источника в итоговом DPO-миксе (в %) —
+    # та же логика, что и у SFTSource.target_share
+    target_share: float | None = None
 
     prompt_field: str = "prompt"
     chosen_field: str = "chosen"
@@ -212,11 +234,54 @@ class SFTData(BaseModel):
     val_split_ratio: float = 0.01
     seed: int = 42
 
+# Источник для бенчмарка. В отличие от pre_training_data/SFTSource/DPOSource,
+# тут нет weight/сэмплирования — бенчмарк не подмешивается в поток, а
+# прогоняется целиком отдельно, один источник за другим. task_type определяет,
+# какие поля обязательны и какой путь оценки использовать в benchmark.py:
+#   multiple_choice — вопрос + список вариантов + индекс правильного (loglikelihood
+#                      по вариантам, через lm_eval_adapter.py)
+#   generation       — вопрос + эталонный ответ, сравнение через exact-match
+#                      (при необходимости ответ вытаскивается из решения через
+#                      answer_extract_pattern — например "#### 42" в gsm8k)
+class BenchmarkSource(BaseModel):
+    dataset_name: str
+    subset: str | None = None
+    split: str = "test"
+    task_type: Literal["multiple_choice", "generation"]
+
+    question_field: str = "question"
+
+    # multiple_choice
+    options_field: str | None = None
+    answer_index_field: str | None = None
+
+    # generation
+    answer_field: str | None = None
+    answer_extract_pattern: str | None = None
+
+    cache_name: str | None = None
+
+    @model_validator(mode="after")
+    def _check_task_fields(self) -> "BenchmarkSource":
+        if self.task_type == "multiple_choice" and (self.options_field is None or self.answer_index_field is None):
+            raise ValueError(
+                f"{self.dataset_name}: task_type=multiple_choice требует options_field и answer_index_field"
+            )
+        if self.task_type == "generation" and self.answer_field is None:
+            raise ValueError(f"{self.dataset_name}: task_type=generation требует answer_field")
+        return self
+
+
+class BenchmarkData(BaseModel):
+    sources: list[BenchmarkSource] = []
+    seed: int = 42
+
 # Конфиг данных конечный
 class DataConfig(BaseModel):
     pre_training_data: PretrainData
     sft_data: SFTData
     rlft_data: DPOData
+    benchmark_data: BenchmarkData
 
 # ------------------------------------------------------------------------------------------------
 
@@ -240,6 +305,7 @@ class ModelConfig(BaseModel):
     max_position_embeddings: int   # контекст, ~6144 или 8192 (степень двойки/512 удобнее)
     norm_eps: float           # eps для RMSNorm (pre-norm блоков)
     window_pattern: str = "L"  # заглушка на будущее, все full attention пока
+    tie_word_embeddings: bool = True  # lm_head = входной эмбеддинг (Press & Wolf) — экономит vocab_size*hidden_size параметров
 
 # Класс конфигурации внимания
 class AttentionConfig(BaseModel):
@@ -382,5 +448,3 @@ def get_config() -> ExperimentConfig:
         training=TrainingConfig(**_load_yaml(env, "training_config.yaml")),
         engine=EngineConfig(**_load_yaml(env, "engine_config.yaml")),
     )
-
-

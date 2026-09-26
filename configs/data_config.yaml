@@ -1,8 +1,18 @@
 # Данные для pre-trainig
 pre_training_data:
-  max_shard: 6542
+  rows_per_shard: 50000
   seed: 42
   val_split_ratio: 0.01
+
+  # Процентное распределение по языкам
+  rus_quantity: 60 # % от общего датасета
+  en_quantity: 20
+  code_quantity: 20
+
+  # Количество документов для кеширования
+  rus_cache_docs: 1200000 
+  en_cache_docs: 400000
+  code_cache_docs: 400000
 
   # Русский язык
   rus_sources:
@@ -17,30 +27,27 @@ pre_training_data:
       subset: 20231101.ru
       split: train
       weight: 0.3
-  rus_quantity: 60 # % от общего датасета
-  rus_cache_docs: 1200000 #  количество документов, которые будут закешированы для ускорения обучения
 
   # Англиский язык
   en_sources:
     - dataset_name: HuggingFaceFW/fineweb
       split: train
       weight: 1.0
-  en_quantity: 20
-  en_cache_docs: 400000
 
-  # Код
+  # Код 
   code_sources:
+      # Python
     - dataset_name: HuggingFaceCode/stack-v3-train
       split: train
       weight: 1.0
-  code_quantity: 20
-  code_cache_docs: 400000
+      language_filter: python
+      cache_name: python
   
 # --------------------------------------------------------------------  
 
-# Данные для fine-tuning (SFT)
+# Данные для SFT
 # Инструкционное обучение не подразумевает код без инстукций на естественном языке
-# Разделение идет по парно в зависимости от задачи (русский язык +код, англиский язык + общие знания)
+# Разделение идет по парно в зависимости от задачи (русский язык + код, англиский язык + общие знания)
 sft_data:
   seed: 42
   val_split_ratio: 0.01
@@ -51,65 +58,93 @@ sft_data:
     - dataset_name: concretejungles/T-Wix-instag
       split: train
       weight: 1.0
+      target_share: 40
       messages_field: messages
       filter_field: supertag
       filter_values: [general-knowledge]
       cache_name: t-wix-general
 
       # Русский язык (код)
-    - dataset_name: concretejungles/T-Wix-instag 
+    - dataset_name: concretejungles/T-Wix-instag
       split: train
       weight: 1.0
+      target_share: 40
       messages_field: messages
       filter_field: supertag
       filter_values: [code]
       cache_name: t-wix-code
 
-      # Англиский язык (общие знания)
+      # Английский язык (общие знания)
     - dataset_name: nyuuzyou/EagleSFT
       split: en
       weight: 1.0
+      target_share: 20
       messages_field: messages
 
 # ---------------------------------------------------------------------
 
-# Данные для fine-tuning (RLFT)
+# Данные для RLFT
+# Данные для обучения с подкреплением (парные данные, хороший/плохой ответ)
 rlft_data:
-  rus: []
-  en: []
-  code: []
-  
+  cache_docs_per_source: 50000
+  val_split_ratio: 0.01
+  seed: 42
+
+  sources:
+      # Русский (переведённый hh-rlhf)
+    - dataset_name: d0rj/hh-rlhf-ru
+      split: train
+      weight: 1.0
+      target_share: 70
+      prompt_field: prompt
+      chosen_field: chosen
+      rejected_field: rejected
+      as_messages: false
+      cache_name: hh-rlhf-ru
+
+      # Английский (Tulu 3 preference mixture)
+    - dataset_name: allenai/llama-3.1-tulu-3-8b-preference-mixture
+      split: train
+      weight: 1.0
+      target_share: 30
+      prompt_field: prompt
+      chosen_field: chosen
+      rejected_field: rejected
+      as_messages: true
+      cache_name: tulu3-preference-mix
 
 # ---------------------------------------------------------------------
 
 # Данные для Benchmark
-banchmark_data:
+benchmark_data:
   seed: 42
 
   sources:
-      # Русский язык
-      # Датасет яндекса с 57 темами.
-    - dataset_name: yandex/WikiWebFacts
-      weight: 1.0
-
-      # Проверка знаний на русском по 57 областям. 
+      # Русский, multiple-choice (10 вариантов, аналог MMLU-Pro) — поля предположительны,
+      # свериться через первый документ перед запуском (см. _peek_and_validate_fields)
     - dataset_name: t-tech/ruMMLU-pro
-      weight: 1.0
+      split: test
+      task_type: multiple_choice
+      question_field: question
+      options_field: options
+      answer_index_field: answer_index
+      cache_name: ru-mmlu-pro
 
-      # Оценка генерации кода на русском
-    - dataset_name: MERA-evaluation/ruHumanEval
-      weight: 1.0
-
-      # Оценка генерации кода на русском
-    - dataset_name: MERA-evaluation/ruCodeEval
-      weight: 1.0
-
-      # Англиский язык
-      # Это абсолютный стандарт для оценки знаний на англиском. 57 тем.
+      # Английский, multiple-choice (10 вариантов)
     - dataset_name: TIGER-Lab/MMLU-Pro
-      weight: 1.0
+      split: test
+      task_type: multiple_choice
+      question_field: question
+      options_field: options
+      answer_index_field: answer_index
+      cache_name: mmlu-pro
 
-      # Оценка математических рассуждений
+      # Английский, генерация с числовым ответом после "####"
     - dataset_name: openai/gsm8k
-      weight: 1.0
-
+      subset: main
+      split: test
+      task_type: generation
+      question_field: question
+      answer_field: answer
+      answer_extract_pattern: '####\s*([\-0-9,.]+)'
+      cache_name: gsm8k

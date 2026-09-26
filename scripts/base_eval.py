@@ -1,17 +1,16 @@
 import argparse
 import math
-import os
 
 import mlflow
-import torch
 from transformers import PreTrainedTokenizerFast
 
+from src.common.mlflow import setup_mlflow
 from src.common.config import get_config, PROJECT_ROOT
 from src.common.device import resolve_device, get_device_info
 from src.common.logger import setup_logger
 from src.data.dataset import build_language_mix_from_disk, extract_texts
 from src.data.dataloader import create_cycling_pretrain_dataloader, collate_pretrain_batch
-from src.model.transformer import Transformer
+from src.model.build import build_model
 from src.training.checkpoint import find_latest_checkpoint, load_checkpoint
 from src.training.eval_step import eval_step
 from src.engine.select import make_generate_fn
@@ -32,23 +31,6 @@ GENERATION_PROMPTS = {
         "class LinkedList:",
     ],
 }
-
-
-def build_model(config) -> Transformer:
-    return Transformer(
-        vocab_size=config.model.model.vocab_size,
-        num_layer=config.model.model.num_layers,
-        hidden_size=config.model.model.hidden_size,
-        head_dim=config.model.attention.head_dim,
-        num_heads=config.model.attention.num_heads,
-        num_kv_heads=config.model.attention.num_kv_heads,
-        use_qk_norm=config.model.attention.use_qk_norm,
-        qk_norm_eps=config.model.attention.qk_norm_eps,
-        rope_theta=config.model.attention.rope_theta,
-        max_position_embeddings=config.model.model.max_position_embeddings,
-        intermediate_size=config.model.mlp.intermediate_size,
-        norm_eps=config.model.model.norm_eps,
-    )
 
 
 # Честная оценка по одному языку: усредняем loss по num_batches независимым
@@ -117,7 +99,7 @@ def main():
 
     model = build_model(config)
     model = model.to(device)
-    load_checkpoint(checkpoint_dir=checkpoints_dir, step=step, model=model)  # optimizer не нужен для оценки
+    load_checkpoint(checkpoint_dir=checkpoints_dir, step=step, model=model, device=device)  # optimizer не нужен для оценки
     model.eval()
 
     pretrain_config = config.training.pre_training
@@ -140,17 +122,11 @@ def main():
     logger.info(f"Среднее по языкам: val_loss={overall_loss:.4f}, perplexity={overall_perplexity:.2f}")
 
     # Логируем в MLflow отдельным run, привязанным к шагу чекпоинта —
-    # чтобы можно было сравнивать разные чекпоинты между собой со временем
-    # Тот же tracking URI, что и в base_train.py/base_sft.py — без явного
-    # set_tracking_uri MLflow создаёт mlruns/ там, откуда запущен скрипт
-    # (обычно корень репозитория), а не в outputs/mlflow/ — тогда оценка
-    # логируется в отдельную, "невидимую" из UI базу
-    os.environ["MLFLOW_ALLOW_FILE_STORE"] = "true"
-    mlflow_dir = PROJECT_ROOT / "outputs" / "mlflow"
-    mlflow_dir.mkdir(parents=True, exist_ok=True)
-    mlflow.set_tracking_uri(f"file:///{mlflow_dir}/mlruns")
-
-    mlflow.start_run(run_name=f"eval_step_{step}")
+    # чтобы можно было сравнивать разные чекпоинты между собой со временем.
+    # Тот же tracking URI, что и в base_train.py (setup_mlflow), без явного
+    # tracking_uri MLflow создаёт mlruns/ там, откуда запущен скрипт
+    # (обычно корень репозитория), а не в outputs/mlflow/
+    setup_mlflow(run_name=f"eval_step_{step}")
     mlflow.log_param("checkpoint_step", step)
     for language, (loss, perplexity) in results.items():
         mlflow.log_metric(f"val_loss_{language}", loss)

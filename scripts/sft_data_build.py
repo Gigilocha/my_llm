@@ -1,6 +1,6 @@
 from src.common.config import get_config, PROJECT_ROOT
 from src.common.logger import setup_logger
-from src.data.sft_dataset import cache_sft_data
+from src.data.dataset import cache_sft_data
 
 
 # Докачка/кеширование SFT-данных отдельно от запуска обучения — та же логика,

@@ -4,8 +4,8 @@ from transformers import PreTrainedTokenizerFast
 
 from src.common.config import get_config, PROJECT_ROOT
 from src.common.device import resolve_device, get_device_info
-from src.data.sft_format import format_prompt_for_generation
-from src.model.transformer import Transformer
+from src.data.format import format_prompt_for_generation
+from src.model.build import build_model
 from src.training.checkpoint import find_latest_checkpoint, load_checkpoint
 from src.engine.select import make_generate_fn
 
@@ -15,23 +15,6 @@ from src.engine.select import make_generate_fn
 автоматическая оценка (для неё есть base_eval.py/sft_eval.py). Сохраняет
 историю диалога (multi-turn), пока не наберёшь /reset или /exit.
 """
-
-
-def build_model(config) -> Transformer:
-    return Transformer(
-        vocab_size=config.model.model.vocab_size,
-        num_layer=config.model.model.num_layers,
-        hidden_size=config.model.model.hidden_size,
-        head_dim=config.model.attention.head_dim,
-        num_heads=config.model.attention.num_heads,
-        num_kv_heads=config.model.attention.num_kv_heads,
-        use_qk_norm=config.model.attention.use_qk_norm,
-        qk_norm_eps=config.model.attention.qk_norm_eps,
-        rope_theta=config.model.attention.rope_theta,
-        max_position_embeddings=config.model.model.max_position_embeddings,
-        intermediate_size=config.model.mlp.intermediate_size,
-        norm_eps=config.model.model.norm_eps,
-    )
 
 
 def main():
@@ -66,7 +49,7 @@ def main():
     if step is None:
         raise FileNotFoundError(
             f"Нет чекпоинтов в {checkpoints_dir}. "
-            f"{'Запусти base_sft.py' if args.checkpoint == 'sft' else 'Запусти base_train.py'} сначала, "
+            f"{'Запусти sft_train.py' if args.checkpoint == 'sft' else 'Запусти base_train.py'} сначала, "
             f"либо укажи --checkpoint pretrain, если SFT ещё не готов."
         )
 
@@ -75,7 +58,10 @@ def main():
     special_tokens = config.tokenizer.special_tokens
 
     model = build_model(config).to(device)
-    load_checkpoint(checkpoint_dir=checkpoints_dir, step=step, model=model)
+    # device=device — грузим чекпоинт напрямую на нужное устройство, важно
+    # именно здесь: chat.py — типичный сценарий "быстро проверить модель на
+    # ноутбуке без GPU", а чекпоинт почти наверняка сохранён с CUDA-машины
+    load_checkpoint(checkpoint_dir=checkpoints_dir, step=step, model=model, device=device)
     model.eval()
 
     generate_fn = make_generate_fn(model, tokenizer, device, config.model.model.max_position_embeddings, engine_cfg)

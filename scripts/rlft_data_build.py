@@ -1,6 +1,6 @@
 from src.common.config import get_config, PROJECT_ROOT
 from src.common.logger import setup_logger
-from src.data.dpo_dataset import cache_dpo_data
+from src.data.dataset import cache_dpo_data
 
 
 # Докачка preference-данных для DPO отдельно от запуска обучения —

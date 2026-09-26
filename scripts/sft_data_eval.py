@@ -5,14 +5,18 @@ import pyarrow.parquet as pq
 
 from src.common.config import get_config, PROJECT_ROOT
 from src.common.logger import setup_logger
-from src.data.sft_dataset import _local_dir_for_sft_source
+from src.data.dataset import sft_shard_dir
 
 
 """
 Проверка закешированных SFT-данных до того, как тратить время на обучение:
 - сколько примеров реально получилось на источник (train/val)
 - случайные примеры для чтения глазами — особенно важно для источников с
-  непроверенным происхождением (см. обсуждение Vibe-Coding-Instruct)
+  непроверенным происхождением
+- target_share рядом с фактическим weight: до автоматической калибровки в
+  build_sft_mix_from_disk weight — просто исходное значение из конфига, не
+  скорректированное под токенную долю; этот скрипт не показывает "правильный"
+  weight (это делает калибровка в момент сборки микса), только сырые счётчики
 """
 
 
@@ -41,10 +45,11 @@ def main():
     rng = random.Random(args.seed)
 
     for source in config.data.sft_data.sources:
-        logger.info(f"\n{'='*60}\nИсточник: {source.dataset_name} (вес={source.weight})")
+        share_info = f"target_share={source.target_share}" if source.target_share is not None else "target_share не задан"
+        logger.info(f"\n{'='*60}\nИсточник: {source.dataset_name} (weight={source.weight}, {share_info})")
 
         for split in ("train", "val"):
-            shard_dir = _local_dir_for_sft_source(source, data_dir, split)
+            shard_dir = sft_shard_dir(source, data_dir, split)
             marker = shard_dir / "_SUCCESS"
             if not marker.exists():
                 logger.info(f"  {split}: НЕ ЗАКЕШИРОВАН")
@@ -54,7 +59,7 @@ def main():
             n_shards = len(list(shard_dir.glob("part_*.parquet")))
             logger.info(f"  {split}: {doc_count}, шардов: {n_shards}")
 
-        train_dir = _local_dir_for_sft_source(source, data_dir, "train")
+        train_dir = sft_shard_dir(source, data_dir, "train")
         if train_dir.exists():
             examples = read_examples(train_dir, args.samples_per_source)
             if examples:

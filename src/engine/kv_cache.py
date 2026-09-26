@@ -50,9 +50,9 @@ class GenerationEngine:
         self.top_k = top_k
         self.repetition_penalty = repetition_penalty
 
-        # ИСПРАВЛЕНО: model.num_layers не существует — берём длину уже
-        # построенного ModuleList, а не несуществующий сохранённый атрибут
-        self.caches = [KVCache() for _ in range(len(model.trasformer_block))]
+        # Длина берётся из уже построенного ModuleList, а не из отдельного
+        # атрибута num_layers — такого атрибута на Transformer нет вообще
+        self.caches = [KVCache() for _ in range(len(model.transformer_block))]
 
     def reset_cache(self):
         for cache in self.caches:
@@ -65,9 +65,7 @@ class GenerationEngine:
         x = self.model.embedding(input_ids)
         batch, new_len, _ = x.shape
 
-        # ИСПРАВЛЕНО: атрибут называется trasformer_block (опечатка в исходном
-        # классе Transformer), а не transformer_block
-        for layer_idx, block in enumerate(self.model.trasformer_block):
+        for layer_idx, block in enumerate(self.model.transformer_block):
             attn = block.attention
             norm_out = block.norm1(x)
 
@@ -76,9 +74,9 @@ class GenerationEngine:
             k = attn.k_layer(norm_out).view(batch, new_len, attn.num_kv_heads, attn.head_dim).transpose(1, 2)
             v = attn.v_layer(norm_out).view(batch, new_len, attn.num_kv_heads, attn.head_dim).transpose(1, 2)
 
-            # ИСПРАВЛЕНО: attn.use_qk_norm не существует как атрибут — q_norm/k_norm
-            # это либо RMSNorm, либо nn.Identity() (решается один раз при
-            # конструировании), вызываем БЕЗ условия, как в оригинальном forward()
+            # q_norm/k_norm — либо RMSNorm, либо nn.Identity() (решается один
+            # раз при конструировании Attention), вызываем БЕЗ условия здесь,
+            # как и в оригинальном Attention.forward()
             q = attn.q_norm(q)
             k = attn.k_norm(k)
 
@@ -135,10 +133,10 @@ class GenerationEngine:
         top_k = top_k if top_k is not None else self.top_k
         repetition_penalty = repetition_penalty if repetition_penalty is not None else self.repetition_penalty
 
-        # ИСПРАВЛЕНО: сырой tokenizer.encode() не добавляет BOS (post_processor
-        # тут только про byte-level смещения, не про спецтокены) — модель на
-        # обучении ВСЕГДА видела BOS на позиции 0, добавляем его здесь явно,
-        # как и в src/engine/generate.py
+        # Сырой tokenizer.encode() не добавляет BOS (post_processor тут только
+        # про byte-level смещения, не про спецтокены) — модель на обучении
+        # ВСЕГДА видела BOS на позиции 0, добавляем его здесь явно, как и в
+        # src/engine/generate.py
         prompt_ids = tokenizer_encode(self.tokenizer, prompt, add_special_tokens=False)
         generated_ids = [self.tokenizer.bos_token_id] + prompt_ids
         prompt_len = len(generated_ids)  # для return_full_text=False
@@ -151,7 +149,7 @@ class GenerationEngine:
         # Без этой проверки выход за пределы дал бы пустой срез rope_cos и
         # непонятную ошибку вида "shape '[1, 1, N]' is invalid for input of size 0"
         # вместо явного сообщения о причине
-        max_position_embeddings = self.model.trasformer_block[0].attention.rope_cos.shape[0]
+        max_position_embeddings = self.model.transformer_block[0].attention.rope_cos.shape[0]
         if pos > max_position_embeddings:
             raise ValueError(
                 f"Промпт ({pos} токенов) длиннее max_position_embeddings модели "

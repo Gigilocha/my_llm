@@ -2,9 +2,33 @@ import mlflow
 import logging
 import torch
 import psutil
-import time
+import os
 from pathlib import Path
 from typing import Optional
+
+from src.common.config import PROJECT_ROOT
+
+
+# Общая настройка MLflow-рана: env var, tracking URI, start_run, тэги,
+# параметры. Раньше эти 6 строк были дословно продублированы в base_train.py/
+# sft_train.py/rlft_train.py (и *_eval.py-скриптах — свой вариант без тэгов/
+# параметров запуска). tracking_uri — mlflow_dir уже абсолютный путь
+# (начинается с "/"), поэтому тут ровно "file://" + путь ("file:///home/..."
+# — три слэша в сумме), а не "file:///" + путь (было бы четыре)
+def setup_mlflow(run_name: str, tags: dict | None = None, params: dict | None = None) -> None:
+    os.environ["MLFLOW_ALLOW_FILE_STORE"] = "true"
+    mlflow_dir = PROJECT_ROOT / "outputs" / "mlflow"
+    mlflow_dir.mkdir(parents=True, exist_ok=True)
+    mlflow.set_tracking_uri(f"file://{mlflow_dir}/mlruns")
+
+    # Обязательно ДО любых log_*/set_tags — иначе fluent API MLflow неявно
+    # стартует run сам на первом логирующем вызове, и явный start_run() ниже
+    # упадёт с "Run ... is already active"
+    mlflow.start_run(run_name=run_name)
+    if tags:
+        mlflow.set_tags(tags)
+    if params:
+        mlflow.log_params(params)
 
 
 # Логирует шаг обучения.
