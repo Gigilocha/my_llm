@@ -4,15 +4,15 @@ pre_training_data:
   seed: 42
   val_split_ratio: 0.01
 
-  # Процентное распределение по языкам
-  rus_quantity: 60 # % от общего датасета
-  en_quantity: 20
-  code_quantity: 20
+  # Процентное распределение по языкам, % от общего датасета
+  rus_quantity: 46
+  en_quantity: 31
+  code_quantity: 23
 
   # Количество документов для кеширования
   rus_cache_docs: 1200000 
-  en_cache_docs: 400000
-  code_cache_docs: 400000
+  en_cache_docs: 800000
+  code_cache_docs: 600000
 
   # Русский язык
   rus_sources:
@@ -40,7 +40,7 @@ pre_training_data:
     - dataset_name: HuggingFaceCode/stack-v3-train
       split: train
       weight: 1.0
-      language_filter: python
+      language_filter: Python
       cache_name: python
   
 # --------------------------------------------------------------------  

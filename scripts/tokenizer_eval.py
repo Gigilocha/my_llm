@@ -40,6 +40,13 @@ def compression_ratio(text: str, tokenizer: PreTrainedTokenizerFast) -> float:
     return text_length / num_tokens
 
 
+# Токенов на слово. Ключевая метрика для сравнения языков.
+def fertility(text: str, tokenizer) -> float:
+    ids = tokenizer.encode(text, add_special_tokens=False)
+    words = text.split()
+    return len(ids) / len(words) if words else 0.0
+
+
 # Функция проверки round-trip (Декодирование без потерь)
 def check_roundtrip(text: str, tokenizer: PreTrainedTokenizerFast) -> bool:
     # Сохранение оригинального текста
@@ -68,8 +75,9 @@ def main():
         logger.info(f"--- {language} ---")
         for text in texts:
             ratio = compression_ratio(text, tokenizer)
+            fertilitys = fertility(text, tokenizer)
             ok = check_roundtrip(text, tokenizer)
-            logger.info(f"ratio={ratio:.2f} chars/token, roundtrip_ok={ok} | {text[:40]}")
+            logger.info(f"ratio={ratio:.2f} chars/token, fertility={fertilitys}, roundtrip_ok={ok} | {text[:40]}")
 
 
 if __name__ == "__main__":
