@@ -20,5 +20,5 @@ def build_model(config) -> Transformer:
         max_position_embeddings=config.model.model.max_position_embeddings,
         intermediate_size=config.model.mlp.intermediate_size,
         norm_eps=config.model.model.norm_eps,
-        tie_word_embeddings=config.model.model.tie_word_embeddings,
     )
+

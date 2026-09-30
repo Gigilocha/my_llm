@@ -19,7 +19,7 @@ def setup_mlflow(run_name: str, tags: dict | None = None, params: dict | None = 
     os.environ["MLFLOW_ALLOW_FILE_STORE"] = "true"
     mlflow_dir = PROJECT_ROOT / "outputs" / "mlflow"
     mlflow_dir.mkdir(parents=True, exist_ok=True)
-    mlflow.set_tracking_uri(f"file://{mlflow_dir}/mlruns")
+    mlflow.set_tracking_uri((mlflow_dir / "mlruns").as_uri())
 
     # Обязательно ДО любых log_*/set_tags — иначе fluent API MLflow неявно
     # стартует run сам на первом логирующем вызове, и явный start_run() ниже

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.data.sft_format import IGNORE_INDEX
+from src.data.format import IGNORE_INDEX
 
 
 """
